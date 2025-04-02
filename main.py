@@ -16,7 +16,8 @@ def main():
     search_config = SearchConfig(
         start_date=args.start_date,
         end_date=args.end_date,
-        keyword=args.keyword
+        keyword=args.keyword,
+        inqry_div=args.inqry_div
     )
     
     # 출력 파일명 생성
@@ -26,7 +27,8 @@ def main():
     start_time = time.time()
     
     print("데이터 수집을 시작합니다...")
-    print(f"검색 조건: 기간 {search_config.start_date} ~ {search_config.end_date}, 키워드: '{search_config.keyword or '전체'}'")
+    inquiry_type = "공고일시" if search_config.inqry_div == "1" else "개찰일시"
+    print(f"검색 조건: 기준 {inquiry_type}, 기간 {search_config.start_date} ~ {search_config.end_date}, 키워드: '{search_config.keyword or '전체'}'")
     print(f"수집 결과는 '{output_file}'에 실시간으로 저장됩니다.")
     
     # 각 API 엔드포인트에 대해 데이터 수집

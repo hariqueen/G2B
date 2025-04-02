@@ -47,6 +47,9 @@ def process_items(items, api_desc, search_config):
         # 입찰일시 가져오기
         bid_date = item.get("bidNtceDt", "")
         
+        # 개찰일시 가져오기
+        opening_date = item.get("opengDt", "")
+        
         # 추정가격 가져오기
         estimated_price = item.get("presmptPrce", "")
         
@@ -55,6 +58,7 @@ def process_items(items, api_desc, search_config):
             "공고명": bid_name,
             "채권자명": creditor,
             "입찰일시": bid_date,
+            "개찰일시": opening_date,
             "추정가격": estimated_price,
             "분류": api_desc
         })

@@ -23,15 +23,28 @@ def fetch_data_from_api(endpoint, search_config, page_no=1, per_page=100, timeou
     Returns:
         dict or None: API 응답 데이터 또는 오류 시 None
     """
+    # 조회 구분 설정 (1: 공고게시일시, 2: 개찰일시)
+    inqry_div = search_config.inqry_div
+    
+    # 날짜 필드명 설정 (조회 구분에 따라 다름)
+    if inqry_div == "1":
+        # 공고게시일시 기준 조회
+        begin_date_param = f"inqryBgnDt={search_config.start_date}0000"
+        end_date_param = f"inqryEndDt={search_config.end_date}2359"
+    else:
+        # 개찰일시 기준 조회
+        begin_date_param = f"opengBgnDt={search_config.start_date}0000"
+        end_date_param = f"opengEndDt={search_config.end_date}2359"
+    
     # API URL 구성
-    url = f"{BASE_URL}/{endpoint}?serviceKey={API_KEY}&inqryDiv=1&inqryBgnDt={search_config.start_date}0000&inqryEndDt={search_config.end_date}2359&pageNo={page_no}&numOfRows={per_page}&type=json"
+    url = f"{BASE_URL}/{endpoint}?serviceKey={API_KEY}&inqryDiv={inqry_div}&{begin_date_param}&{end_date_param}&pageNo={page_no}&numOfRows={per_page}&type=json"
     
     # 재시도 로직
     retries = 0
     while retries <= max_retries:
         try:
             # API 요청
-            response = requests.get(url, timeout=timeout)  # 타임아웃 설정 증가
+            response = requests.get(url, timeout=timeout)  # 타임아웃 설정
             
             # 디버깅 정보 출력 (첫 페이지만)
             if page_no == 1:

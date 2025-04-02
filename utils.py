@@ -29,6 +29,12 @@ def parse_arguments():
                         default="콜센터", 
                         help='검색 키워드 (빈 문자열로 설정하면 모든 공고 조회)')
     
+    parser.add_argument('--inqry-div',
+                        type=str,
+                        default="1",
+                        choices=["1", "2"],
+                        help='조회구분 (1:공고게시일시, 2:개찰일시)')
+    
     parser.add_argument('--max-pages', 
                         type=int, 
                         default=100, 
