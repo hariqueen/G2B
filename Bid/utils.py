@@ -1,9 +1,6 @@
-"""
-유틸리티 모듈 - 다양한 도우미 함수들을 제공합니다.
-"""
-
 import time
 import argparse
+from config import USER_INPUT
 
 def parse_arguments():
     """
@@ -12,21 +9,21 @@ def parse_arguments():
     Returns:
         argparse.Namespace: 파싱된 명령행 인자
     """
-    parser = argparse.ArgumentParser(description='공공데이터포털 입찰공고 데이터 수집기')
+    parser = argparse.ArgumentParser(description='공공데이터포털 입찰공고 및 개찰결과 데이터 수집기')
     
     parser.add_argument('--start-date', 
                         type=str, 
-                        default="20240101", 
+                        default=USER_INPUT["start_date"], 
                         help='조회 시작일 (YYYYMMDD 형식)')
     
     parser.add_argument('--end-date', 
                         type=str, 
-                        default="20240120", 
+                        default=USER_INPUT["end_date"], 
                         help='조회 종료일 (YYYYMMDD 형식)')
     
     parser.add_argument('--keyword', 
                         type=str, 
-                        default="콜센터", 
+                        default=USER_INPUT["keyword"], 
                         help='검색 키워드 (빈 문자열로 설정하면 모든 공고 조회)')
     
     parser.add_argument('--max-pages', 
