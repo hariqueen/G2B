@@ -6,7 +6,7 @@ load_dotenv()
 # API 키 설정
 BID_API_KEY = os.getenv("BID_API_KEY")
 
-# 사용할 입찰 API 목록 (현재 용역 카테고리 기준)
+# 사용할 입찰 API 목록 (현재는 '용역' 카테고리 기준)
 BID_ENDPOINTS = [
     {
         "path": "getBidPblancListInfoServcPPSSrch",
@@ -14,12 +14,19 @@ BID_ENDPOINTS = [
     }
 ]
 
-# 기본 검색 조건 클래스
+# 🧾 기본 검색 설정값
+DEFAULT_INPUT = {
+    "start_date": "20250301",
+    "end_date": "20250401",
+    "keyword": "콜센터"
+}
+
+# 기본 검색 조건 객체
 class SearchConfig:
-    def __init__(self):
-        self.start_date = "20250101"  # YYYYMMDD
-        self.end_date = "20250201"
-        self.keyword = "콜센터"
+    def __init__(self, start_date=None, end_date=None, keyword=None):
+        self.start_date = start_date or DEFAULT_INPUT["start_date"]
+        self.end_date = end_date or DEFAULT_INPUT["end_date"]
+        self.keyword = keyword or DEFAULT_INPUT["keyword"]
 
     def get_filename(self):
         from datetime import datetime
