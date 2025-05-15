@@ -53,62 +53,40 @@ def register_year_callbacks(app, df):
 
 def register_info_callbacks(app, df):
     @app.callback(
-        Output("monthly-count-chart", "figure"),
-        Input("selected-year", "data")
+    Output("monthly-count-chart", "figure"),
+    Input("selected-year", "data")
     )
     def update_monthly_chart(selected_year):
         year_df = df[df["예상_연도"] == selected_year]
         
-        # 원본 데이터와 예측 데이터 구분
-        original_df = year_df[~year_df["공고명"].str.contains("예측")]
-        prediction_df = year_df[year_df["공고명"].str.contains("예측")]
-        
-        # 월별 집계
-        original_monthly = original_df.groupby("예상_입찰월")["공고명"].count().reset_index()
-        prediction_monthly = prediction_df.groupby("예상_입찰월")["공고명"].count().reset_index()
+        # 원본 데이터와 예측 데이터 구분하지 않고 통합
+        monthly = year_df.groupby("예상_입찰월")["공고명"].count().reset_index()
         
         # 월 이름 추가
-        original_monthly["월"] = original_monthly["예상_입찰월"].astype(str) + "월"
-        prediction_monthly["월"] = prediction_monthly["예상_입찰월"].astype(str) + "월"
+        monthly["월"] = monthly["예상_입찰월"].astype(str) + "월"
         
         # 모든 월 (1-12) 생성
         all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
         all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
         
-        # 원본 데이터 병합
-        if not original_monthly.empty:
-            original_monthly = pd.merge(all_months, original_monthly, on=["예상_입찰월", "월"], how="left")
-            original_monthly["공고명"] = original_monthly["공고명"].fillna(0)
+        # 데이터 병합
+        if not monthly.empty:
+            monthly = pd.merge(all_months, monthly, on=["예상_입찰월", "월"], how="left")
+            monthly["공고명"] = monthly["공고명"].fillna(0)
         else:
-            original_monthly = all_months.copy()
-            original_monthly["공고명"] = 0
+            monthly = all_months.copy()
+            monthly["공고명"] = 0
         
-        # 예측 데이터 병합
-        if not prediction_monthly.empty:
-            prediction_monthly = pd.merge(all_months, prediction_monthly, on=["예상_입찰월", "월"], how="left")
-            prediction_monthly["공고명"] = prediction_monthly["공고명"].fillna(0)
-        else:
-            prediction_monthly = all_months.copy()
-            prediction_monthly["공고명"] = 0
-        
-        # 그래프 생성
+        # 그래프 생성 - 단일 색상으로 통합
         fig = px.bar(
-            original_monthly,
+            monthly,
             x="월",
             y="공고명",
             title=f"{selected_year}년 월별 공고 수",
             labels={"공고명": "공고 수", "월": ""},
-            color_discrete_sequence=["#1f77b4"]  # 원본 데이터 색상
+            color_discrete_sequence=["#1f77b4"]  # 단일 색상으로 통일
         )
         
-        # 예측 데이터 추가
-        fig.add_bar(
-            x=prediction_monthly["월"],
-            y=prediction_monthly["공고명"],
-            name="예측 공고",
-            marker_color="#ff7f0e"  # 예측 데이터 색상
-        )
-
         # 레이아웃 설정
         fig.update_layout(
             title_font_size=20,
@@ -117,18 +95,11 @@ def register_info_callbacks(app, df):
             plot_bgcolor="white",
             margin=dict(l=20, r=20, t=50, b=20),
             height=400,
-            barmode="group",  # 원본과 예측 데이터를 그룹으로 표시
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
+            barmode="stack"  # 그룹이 아닌 스택 모드로 변경
         )
         
-        # 원본 데이터 이름 변경
-        fig.data[0].name = "실제 공고"
+        # 범례 제거 (예측/실제 구분 없어짐)
+        fig.update_layout(showlegend=False)
         
         return fig
 
@@ -164,14 +135,22 @@ def register_info_callbacks(app, df):
         page_기관 = 기관_리스트[start:end]
         기관_총수 = len(기관_리스트)
         
-        # 실제 공고와 예측 공고 수 계산
-        actual_count = len(target_df[~target_df["공고명"].str.contains("예측")])
-        predicted_count = len(target_df[target_df["공고명"].str.contains("예측")])
+        # 공고 수 계산 (예측 구분 제거)
+        total_count = len(target_df)
 
         org_list = []
         for name in page_기관:
             기관공고_df = target_df[target_df["실수요기관"] == name]
-            공고_리스트 = 기관공고_df[["공고명", "예상_입찰일", "예상_년월"]].sort_values("예상_입찰일")
+            공고_리스트 = 기관공고_df[["공고명", "예상_입찰일", "예상_년월", "용역기간(개월)"]].sort_values("예상_입찰일")
+
+            # 각 공고에 대해 예측 입찰일 계산
+            for i, (_, row) in enumerate(공고_리스트.iterrows()):
+                # 예측 입찰일 계산 부분 추가
+                if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                    예측일 = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+                    공고_리스트.at[i, "예측_입찰일"] = 예측일
+                else:
+                    공고_리스트.at[i, "예측_입찰일"] = pd.NaT
 
             org_details = html.Details([
                 html.Summary(name, className="org-name"),
@@ -179,10 +158,15 @@ def register_info_callbacks(app, df):
                     html.H4(f"🏢 {name} - 예정 공고", className="org-title"),
                     html.Div([
                         html.Button(
-                            f"{'🔮' if '예측' in row['공고명'] else '📌'} {row['공고명']}",
+                            f"{row['공고명']}",
                             id={"type": "bid-btn", "index": f"{name}_{i}"},
-                            className=f"bid-button {'prediction-button' if '예측' in row['공고명'] else ''}",
-                            **{"data-month": row["예상_년월"], "data-year": row["예상_년월"].split("-")[0], "data-bid": row["공고명"]}
+                            className="bid-button",
+                            **{
+                                "data-month": row["예상_년월"], 
+                                "data-year": row["예상_년월"].split("-")[0], 
+                                "data-bid": row["공고명"],
+                                "data-predicted-month": row["예측_입찰일"].strftime('%Y-%m') if pd.notna(row["예측_입찰일"]) else "-"
+                            }
                         ) for i, (_, row) in enumerate(공고_리스트.iterrows())
                     ], className="bid-buttons-container")
                 ], className="org-details-content")
@@ -190,11 +174,9 @@ def register_info_callbacks(app, df):
 
             org_list.append(org_details)
 
-        # 예측 정보를 포함한 월 표시
-        month_display = f"다음 입찰 예상월: {target_월}"
-        if predicted_count > 0:
-            month_display += f" (실제: {actual_count}건, 예측: {predicted_count}건)"
-            
+        # 월 표시 (예측 정보 제거)
+        month_display = f"다음 입찰 예상월: {target_월} (총 {total_count}건)"
+                
         return month_display, f"🏢 실수요기관 수: {기관_총수}곳", org_list
 
 
@@ -309,27 +291,32 @@ def register_month_navigation_callbacks(app, df):
                 for _, row in sorted_data.iterrows():
                     highlight = (row["공고명"] == selected_bid)
                     
-                    # 예측 공고인지 확인
+                    # 예측 공고인지 확인 (스타일 차이는 유지하되, 더 미묘하게 표시)
                     is_prediction = "예측" in str(row["공고명"])
-                    emoji = "🔮" if is_prediction else ("📍" if highlight else "📌")
+                    emoji = "📌" if not is_prediction else ("📍" if highlight else "📌")
                     
-                    # 예측 공고는 다른 스타일로 표시
+                    # 예측 공고에 대한 스타일 수정 (파란색 강조 제거)
                     summary_class = "bid-summary"
                     if highlight:
                         summary_class += " highlighted"
-                    if is_prediction:
-                        summary_class += " prediction"
+                    
+                    # 예측 입찰일 계산
+                    predicted_date = ""
+                    if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                        predicted_date = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+                        predicted_date = predicted_date.strftime('%Y-%m') if not pd.isna(predicted_date) else "-"
                     
                     bid_details = html.Details([
                         html.Summary(f"{emoji} {row['공고명']}", className=summary_class),
                         html.Div([
                             html.P(f"실수요기관: {row['실수요기관'] if pd.notna(row['실수요기관']) else '-'}", className="bid-detail"),
-                            html.P(f"입찰월: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
+                            html.P(f"입찰게시: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
+                            html.P(f"(예측)입찰게시: {predicted_date}", className="bid-detail"),
                             html.P(f"M/M: {row['물동량 평균'] if pd.notna(row['물동량 평균']) else '-'}", className="bid-detail"),
                             html.P(f"용역기간: {row['용역기간(개월)'] if pd.notna(row['용역기간(개월)']) else '-'}{'개월' if pd.notna(row['용역기간(개월)']) else ''}", className="bid-detail"),
                             html.P(f"계약금액: {row['계약 기간 내'] if pd.notna(row['계약 기간 내']) else '-'}{'원' if pd.notna(row['계약 기간 내']) else ''}", className="bid-detail"),
-                            html.P(f"1순위 입찰업체: {row['입찰결과_1순위'] if pd.notna(row['입찰결과_1순위']) else '-'}", className="bid-detail"),
-                            html.P(f"입찰금액: {row['입찰금액_1순위'] if pd.notna(row['입찰금액_1순위']) else '-'}{'원' if pd.notna(row['입찰금액_1순위']) else ''}", className="bid-detail"),
+                            html.P(f"1순위 입찰업체: {'-' if row['입찰결과_1순위'] == '예측' else (row['입찰결과_1순위'] if pd.notna(row['입찰결과_1순위']) else '-')}", className="bid-detail"),
+                            html.P(f"입찰금액: {row['입찰금액_1순위'] if pd.notna(row['입찰금액_1순위']) and row['입찰금액_1순위'] != 0 else '-'}{'원' if pd.notna(row['입찰금액_1순위']) and row['입찰금액_1순위'] != 0 else ''}", className="bid-detail"),
                         ])
                     ])
                     month_bids.append(bid_details)
@@ -528,15 +515,19 @@ def register_full_table_callbacks(app, df):
         # 테이블에 표시할 데이터 정렬
         year_df = year_df.sort_values(by="예상_입찰일")
         
-        # 예측 여부 컬럼 추가
-        year_df["예측여부"] = year_df["공고명"].apply(lambda x: "예측" if "예측" in str(x) else "실제")
+        def calculate_predicted_date(row):
+            if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                return row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+            return pd.NaT
+            
+        year_df["예측_입찰일시"] = year_df.apply(calculate_predicted_date, axis=1)
         
         # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
         column_mapping = {
             "공고명": "공고명",
             "실수요기관": "실수요기관",
-            "예상_입찰일": "입찰일",
-            "예측여부": "예측여부",
+            "예상_입찰일": "입찰게시",  # 이름 변경
+            "예측_입찰일시": "(예측)입찰게시",  # 새 컬럼 추가
             "물동량 평균": "평균M/M",
             "용역기간(개월)": "용역기간(개월)",
             "계약 기간 내": "계약금액(원)",
@@ -548,24 +539,29 @@ def register_full_table_callbacks(app, df):
         table_df = year_df[list(column_mapping.keys())].copy()
         table_df.columns = [column_mapping[col] for col in table_df.columns]
         
+        # 입찰업체가 "예측"인 경우 빈 값으로 변경
+        table_df["1순위 입찰업체"] = table_df["1순위 입찰업체"].apply(lambda x: "-" if x == "예측" else x)
+        
         # 날짜 형식 변환
-        if "입찰일" in table_df.columns:
-            table_df["입찰일"] = table_df["입찰일"].dt.strftime('%Y-%m')
+        if "입찰게시" in table_df.columns:
+            table_df["입찰게시"] = table_df["입찰게시"].dt.strftime('%Y-%m')
+        
+        if "(예측)입찰게시" in table_df.columns:
+            table_df["(예측)입찰게시"] = table_df["(예측)입찰게시"].dt.strftime('%Y-%m')
         
         # 테이블 컬럼 설정 개선
         columns = [
             {"name": "공고명", "id": "공고명", "type": "text", "filter_options": {"case": "insensitive"}},
             {"name": "실수요기관", "id": "실수요기관", "type": "text", "filter_options": {"case": "insensitive"}},
-            {"name": "입찰일", "id": "입찰일", "type": "text"},  # 날짜는 텍스트로 처리
-            {"name": "예측여부", "id": "예측여부", "type": "text", "filter_options": {"case": "insensitive"}},
+            {"name": "입찰게시", "id": "입찰게시", "type": "text"},  
+            {"name": "(예측)입찰게시", "id": "(예측)입찰게시", "type": "text"}, 
             {"name": "평균M/M", "id": "평균M/M", "type": "numeric"},
             {"name": "용역기간(개월)", "id": "용역기간(개월)", "type": "numeric"},
             {"name": "계약금액(원)", "id": "계약금액(원)", "type": "numeric", "format": {"specifier": ","}},
             {"name": "1순위 입찰업체", "id": "1순위 입찰업체", "type": "text", "filter_options": {"case": "insensitive"}},
             {"name": "입찰금액(원)", "id": "입찰금액(원)", "type": "numeric", "format": {"specifier": ","}}
         ]
-        
-        # 테이블 생성 (필터링 및 정렬 기능 개선)
+
         table = dash_table.DataTable(
             id='full-data-table',
             columns=columns,
@@ -601,11 +597,6 @@ def register_full_table_callbacks(app, df):
                 {
                     'if': {'row_index': 'odd'},
                     'backgroundColor': 'rgb(248, 248, 248)'
-                },
-                {
-                    'if': {'filter_query': '{예측여부} eq "예측"'},
-                    'backgroundColor': '#e6f3ff',
-                    'borderLeft': '3px solid #2196F3'
                 }
             ],
             style_filter={
@@ -617,7 +608,7 @@ def register_full_table_callbacks(app, df):
             filter_options={"placeholder_text": "검색..."},
             sort_action="native",
             sort_mode="multi",
-            sort_by=[{"column_id": "입찰일", "direction": "asc"}],  # 기본 정렬
+            sort_by=[{"column_id": "입찰게시", "direction": "asc"}],  # 기본 정렬
             page_action='none',
             export_format="csv",
             export_headers="display",
@@ -630,15 +621,13 @@ def register_full_table_callbacks(app, df):
             tooltip_duration=None
         )
         
-        # 실제 공고와 예측 공고 수 계산
-        actual_count = len(table_df[table_df["예측여부"] == "실제"])
-        predicted_count = len(table_df[table_df["예측여부"] == "예측"])
+        # 공고 수 계산 (예측 여부에 따른 구분 제거)
+        total_count = len(table_df)
         
         return html.Div([
             html.Div([
                 html.P([
-                    f"{selected_year}년 공고 총 {len(table_df)}건",
-                    html.Span(f" (실제: {actual_count}건, 예측: {predicted_count}건)", className="prediction-stats"),
+                    f"{selected_year}년 공고 총 {total_count}건",
                 ], className="table-summary-text"),
             ], className="table-summary-container"),
             html.Div(table, className="table-container")

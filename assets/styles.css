@@ -380,21 +380,20 @@ body {
     background: #555;
 }
 
-/* 예측 공고 관련 스타일 추가 */
+/* 예측 공고 관련 스타일 수정 */
 .bid-summary.prediction {
-    background-color: #e6f3ff;
-    border-left: 3px solid #2196F3;
+    background-color: white; 
+    border-left: none;       
 }
 
 .prediction-label {
-    color: #2196F3;
-    font-weight: 500;
+    color: inherit;          
+    font-weight: 500;      
 }
 
-/* 예측 아이콘 및 표시 스타일 */
 .prediction-icon {
-    color: #2196F3;
-    margin-right: 5px;
+    color: inherit;       
+    margin-right: 5px;       
 }
 
 /* 차트 범례 스타일 */
