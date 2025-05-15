@@ -1,0 +1,339 @@
+/* styles.css */
+/* 전체 앱 스타일 */
+body {
+    font-family: 'Noto Sans KR', sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+/* 앱 타이틀 */
+.app-title {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #343a40;
+    font-weight: 700;
+}
+
+/* 연도 선택기 */
+.year-selector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.year-display {
+    margin: 0 20px;
+    text-align: center;
+    min-width: 150px;
+}
+
+/* 버튼 스타일 통일 */
+.month-nav-btn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #dee2e6;
+    background-color: white;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 18px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.month-nav-btn:hover {
+    background-color: #f8f9fa;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* 이전 버튼 스타일 비활성화 */
+.year-btn {
+    display: none;
+}
+
+/* 메인 컨텐츠 레이아웃 */
+.main-content {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+}
+
+.left-column {
+    flex: 1.2;
+    margin-right: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    min-width: 280px;
+    height: 450px; 
+}
+
+.right-column {
+    flex: 1;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    min-width: 280px;
+    height: 450px; 
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 992px) {
+    .main-content {
+        flex-direction: column;
+    }
+    
+    .left-column {
+        margin-right: 0;
+        margin-bottom: 20px;
+    }
+}
+
+/* 섹션 타이틀 */
+.section-title {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #343a40;
+}
+
+/* 다음 예정 입찰 섹션 */
+.next-bid-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.org-count {
+    margin-bottom: 15px;
+}
+
+/* 기관 네비게이션과 리스트 */
+.monthly-bids-wrapper {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.org-list {
+    flex: 1;
+    margin: 0 10px;
+    max-height: 320px; 
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* 기관 Details/Summary 스타일 */
+.org-details {
+    margin-bottom: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.org-name {
+    padding: 10px;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.org-details-content {
+    padding: 10px;
+}
+
+.org-title {
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.bid-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bid-button {
+    text-align: left;
+    background-color: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.bid-button:hover {
+    background-color: #f8f9fa;
+}
+
+/* 월별 공고 리스트 헤더 및 네비게이션 */
+.monthly-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.monthly-range {
+    font-size: 0.95rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* 월별 공고 리스트 (원래 상태 유지) */
+.monthly-bids {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 10px;
+    gap: 20px;
+}
+
+.no-months-message {
+    width: 100%;
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+    color: #6c757d;
+}
+
+.month-cell {
+    flex: 1;
+    min-width: 250px;
+    width: calc(25% - 15px);
+    margin-bottom: 20px;
+}
+
+@media (max-width: 1200px) {
+    .month-cell {
+        width: calc(33.33% - 14px);
+    }
+}
+
+@media (max-width: 992px) {
+    .month-cell {
+        width: calc(50% - 10px);
+    }
+}
+
+@media (max-width: 768px) {
+    .month-cell {
+        width: 100%;
+    }
+}
+
+.month-section {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    height: 100%;
+}
+
+.anchor-point {
+    scroll-margin-top: 80px;
+    padding-top: 10px;
+    min-height: 10px;
+    position: relative;
+}
+
+.month-title {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #343a40;
+}
+
+.month-bids-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.no-bids {
+    font-style: italic;
+    color: #6c757d;
+}
+
+/* 공고 Details/Summary 스타일 */
+.bid-summary {
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.bid-summary.highlighted {
+    background-color: #fff3cd;
+    font-weight: 600;
+}
+
+.bid-detail {
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+}
+
+/* 전체 테이블 */
+.full-table-details {
+    margin-bottom: 30px;
+}
+
+.table-summary {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-weight: 500;
+    margin-bottom: 15px;
+}
+
+.full-table {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+}
+
+/* 스크롤바 스타일링 */
+.org-list::-webkit-scrollbar, 
+.month-bids-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.org-list::-webkit-scrollbar-track, 
+.month-bids-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.org-list::-webkit-scrollbar-thumb, 
+.month-bids-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.org-list::-webkit-scrollbar-thumb:hover, 
+.month-bids-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* 월별 공고 섹션 컨테이너 */
+.monthly-section-container {
+    margin-top: 30px; /* 차트와의 간격 증가 */
+}

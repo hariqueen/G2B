@@ -1,0 +1,428 @@
+from dash import Input, Output, State, callback_context, html, dash_table, ALL, no_update, dcc
+import plotly.express as px
+import pandas as pd
+from datetime import datetime
+
+def register_callbacks(app, df):
+    register_year_callbacks(app, df)
+    register_info_callbacks(app, df)
+    register_month_navigation_callbacks(app, df)
+    register_bid_selection_callbacks(app, df)
+    register_utility_callbacks(app, df)
+    register_next_bid_navigation_callbacks(app, df)
+
+def register_year_callbacks(app, df):
+    @app.callback(
+        [Output("selected-year", "data"),
+         Output("year-display", "children"),
+         Output("current-month-view", "data")],
+        [Input("prev-year-btn", "n_clicks"),
+         Input("next-year-btn", "n_clicks")],
+        [State("selected-year", "data")],
+        prevent_initial_call=False 
+    )
+    def update_selected_year(prev_clicks, next_clicks, current_year):
+        ctx = callback_context
+        today = datetime.today()
+        
+        # 월 그룹 정의 (1~4, 5~8, 9~12)
+        months = list(range(1, 13))
+        month_groups = [months[i:i+4] for i in range(0, len(months), 4)]
+        
+        # 현재 월이 속한 그룹 찾기
+        default_page = next(i for i, g in enumerate(month_groups) if today.month in g)
+        
+        if not ctx.triggered:
+            # 앱 초기 로드 시 - 현재 월이 속한 그룹 표시
+            return current_year, f"{current_year}년", default_page
+
+        button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        if button_id == "prev-year-btn" and prev_clicks:
+            new_year = current_year - 1
+        elif button_id == "next-year-btn" and next_clicks:
+            new_year = current_year + 1
+        else:
+            new_year = current_year
+
+        # 현재 연도일 경우 현재월 포함 그룹, 아니면 첫 그룹(1~4월)
+        month_view = default_page if new_year == today.year else 0
+
+        return new_year, f"{new_year}년", month_view
+
+
+def register_info_callbacks(app, df):
+    @app.callback(
+        Output("monthly-count-chart", "figure"),
+        Input("selected-year", "data")
+    )
+    def update_monthly_chart(selected_year):
+        year_df = df[df["예상_연도"] == selected_year]
+        monthly_count = year_df.groupby("예상_입찰월")["공고명"].count().reset_index()
+        monthly_count["월"] = monthly_count["예상_입찰월"].astype(str) + "월"
+
+        fig = px.bar(
+            monthly_count,
+            x="월",
+            y="공고명",
+            title=f"{selected_year}년 월별 공고 수",
+            labels={"공고명": "공고 수", "월": ""}
+        )
+
+        fig.update_layout(
+            title_font_size=20,
+            xaxis_title=None,
+            yaxis_title="공고 수",
+            plot_bgcolor="white",
+            margin=dict(l=20, r=20, t=50, b=20),
+            height=400
+        )
+        return fig
+
+    @app.callback(
+    [Output("next-bid-month", "children"),
+     Output("org-count", "children"),
+     Output("org-list-container", "children")],
+    [Input("selected-year", "data"),
+     Input("current-page", "data")]
+    )
+    def update_next_bids(selected_year, current_page):
+        today = datetime.today()
+        next_month = datetime(today.year + (today.month == 12), (today.month % 12) + 1, 1)
+
+        upcoming_df = df[df["예상_입찰일"] >= next_month].copy()
+        upcoming_df["예상_년월"] = upcoming_df["예상_입찰일"].dt.strftime("%Y-%m")
+
+        월순서 = sorted(upcoming_df["예상_년월"].unique())
+        
+        # 현재 페이지에 해당하는 월 선택
+        if 월순서 and current_page < len(월순서):
+            current_month = 월순서[current_page]
+            target_months = [current_month]
+        else:
+            target_months = []
+
+        target_df = upcoming_df[upcoming_df["예상_년월"].isin(target_months)]
+        target_월 = target_months[0] if target_months else "N/A"
+        기관_리스트 = sorted(target_df["실수요기관"].unique())
+
+        start = 0
+        end = len(기관_리스트)
+        page_기관 = 기관_리스트[start:end]
+        기관_총수 = len(기관_리스트)
+
+        org_list = []
+        for name in page_기관:
+            기관공고_df = target_df[target_df["실수요기관"] == name]
+            공고_리스트 = 기관공고_df[["공고명", "예상_입찰일", "예상_년월"]].sort_values("예상_입찰일")
+
+            org_details = html.Details([
+                html.Summary(name, className="org-name"),
+                html.Div([
+                    html.H4(f"🏢 {name} - 예정 공고", className="org-title"),
+                    html.Div([
+                        html.Button(
+                            f"📌 {row['공고명']}",
+                            id={"type": "bid-btn", "index": f"{name}_{i}"},
+                            className="bid-button",
+                            **{"data-month": row["예상_년월"], "data-year": row["예상_년월"].split("-")[0], "data-bid": row["공고명"]}
+                        ) for i, (_, row) in enumerate(공고_리스트.iterrows())
+                    ], className="bid-buttons-container")
+                ], className="org-details-content")
+            ], className="org-details")
+
+            org_list.append(org_details)
+
+        return f"다음 입찰 예상월: {target_월}", f"🏢 실수요기관 수: {기관_총수}곳", org_list
+
+
+def register_month_navigation_callbacks(app, df):
+    @app.callback(
+    [
+        Output("current-month-view", "data", allow_duplicate=True),
+        Output("selected-year", "data", allow_duplicate=True),
+    ],
+    [Input("prev-months-btn", "n_clicks"), Input("next-months-btn", "n_clicks")],
+    [State("current-month-view", "data"), State("selected-year", "data")],
+    prevent_initial_call=True
+)
+    def update_month_page(prev_clicks, next_clicks, current_view, selected_year):
+        ctx = callback_context
+        button_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
+
+        months = list(range(1, 13))
+        month_groups = [months[i:i+4] for i in range(0, len(months), 4)]
+        max_page = len(month_groups) - 1
+
+        if button_id == "prev-months-btn":
+            if current_view > 0:
+                return current_view - 1, selected_year
+            else:
+                return max_page, selected_year - 1  # 전년도 마지막 그룹
+
+        elif button_id == "next-months-btn":
+            if current_view < max_page:
+                return current_view + 1, selected_year
+            else:
+                return 0, selected_year + 1  # 다음년도 첫 그룹
+
+        return current_view, selected_year
+
+    @app.callback(
+    [
+        Output("selected-month", "data", allow_duplicate=True),
+        Output("current-month-view", "data", allow_duplicate=True),
+        Output("selected-year", "data", allow_duplicate=True),
+    ],
+    Input("month-selector", "value"),
+    [State("selected-year", "data")],
+    prevent_initial_call=True
+)
+    def select_month_from_dropdown(selected_month, selected_year):
+        if not selected_month:
+            return no_update, no_update, no_update
+
+        selected_month_num = int(selected_month.split("-")[1])
+        months = list(range(1, 13))
+        month_groups = [months[i:i+4] for i in range(0, len(months), 4)]
+
+        # 선택한 월이 속한 그룹 찾기
+        for idx, group in enumerate(month_groups):
+            if selected_month_num in group:
+                return selected_month, idx, no_update
+        
+        return selected_month, no_update, no_update
+
+    @app.callback(
+        [Output("monthly-bids-container", "children"),
+         Output("monthly-range-display", "children"),
+         Output("prev-months-btn", "disabled"),
+         Output("next-months-btn", "disabled")],
+        [Input("selected-year", "data"),
+         Input("current-month-view", "data"),
+         Input("selected-month", "data"),
+         Input("selected-bid", "data")]
+    )
+    def update_monthly_bids(selected_year, current_month_view, selected_month, selected_bid):
+        months = list(range(1, 13))
+        month_groups = [months[i:i+4] for i in range(0, len(months), 4)]
+        view_month_nums = month_groups[current_month_view] if current_month_view < len(month_groups) else []
+
+        year_df = df[df["예상_연도"] == selected_year]
+        view_months = year_df[year_df["예상_입찰월"].isin(view_month_nums)]["예상_년월"].unique()
+        view_months = sorted(view_months)
+
+        max_pages = len(month_groups) - 1
+        
+        # 중요: 이전/다음 버튼을 항상 활성화 (다른 연도로 이동 가능)
+        prev_button_disabled = False
+        next_button_disabled = False
+
+        if not view_months:
+            return html.Div("이 연도에 해당하는 공고가 없습니다.", className="no-months-message"), f"{selected_year}년 {view_month_nums[0]}월-{view_month_nums[-1]}월 공고 없음", prev_button_disabled, next_button_disabled
+
+        range_display = f"현재 보기: {view_month_nums[0]}월 ~ {view_month_nums[-1]}월 ({current_month_view + 1}/{max_pages + 1}페이지)"
+
+        month_cells = []
+        for m in view_months:
+            month_data = year_df[year_df["예상_년월"] == m]
+            anchor_id = f"anchor-{m}"
+            is_selected = (m == selected_month)
+            emphasis = "📍 " if is_selected else ""
+            section_style = {
+                'backgroundColor': '#fff3cd' if is_selected else 'white',
+                'border': '1px solid #ffeeba' if is_selected else '1px solid #dee2e6',
+                'borderRadius': '8px',
+                'boxShadow': '0 2px 8px rgba(0, 0, 0, 0.1)',
+                'padding': '15px'
+            }
+
+            month_bids = []
+            if month_data.empty:
+                month_bids.append(html.P("_(해당 월 공고 없음)_", className="no-bids"))
+            else:
+                for _, row in month_data.iterrows():
+                    highlight = (row["공고명"] == selected_bid)
+                    emoji = "📍" if highlight else "📌"
+                    
+                    bid_details = html.Details([
+                        html.Summary(f"{emoji} {row['공고명']}", className=f"bid-summary {'highlighted' if highlight else ''}"),
+                        html.Div([
+                            html.P(f"실수요기관: {row['실수요기관'] if pd.notna(row['실수요기관']) else '-'}", className="bid-detail"),
+                            html.P(f"입찰일: {row['예상_입찰일'].strftime('%Y-%m-%d') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
+                            html.P(f"M/M: {row['물동량 평균'] if pd.notna(row['물동량 평균']) else '-'}", className="bid-detail"),
+                            html.P(f"용역기간: {row['용역기간(개월)'] if pd.notna(row['용역기간(개월)']) else '-'}{'개월' if pd.notna(row['용역기간(개월)']) else ''}", className="bid-detail"),
+                            html.P(f"계약금액: {row['계약 기간 내'] if pd.notna(row['계약 기간 내']) else '-'}{'원' if pd.notna(row['계약 기간 내']) else ''}", className="bid-detail"),
+                            html.P(f"1순위 입찰업체: {row['입찰결과_1순위'] if pd.notna(row['입찰결과_1순위']) else '-'}", className="bid-detail"),
+                            html.P(f"입찰금액: {row['입찰금액_1순위'] if pd.notna(row['입찰금액_1순위']) else '-'}{'원' if pd.notna(row['입찰금액_1순위']) else ''}", className="bid-detail"),
+                        ])
+                    ])
+                    month_bids.append(bid_details)
+
+            section = html.Div([
+                html.Div(id=anchor_id, className="anchor-point"),
+                html.H3(f"{emphasis}{m}", className="month-title"),
+                html.Div(month_bids, className="month-bids-list")
+            ], className="month-section", style=section_style)
+            month_cells.append(html.Div(section, className="month-cell"))
+
+        return month_cells, range_display, prev_button_disabled, next_button_disabled
+    
+def register_bid_selection_callbacks(app, df):
+    @app.callback(
+        [Output("selected-month", "data", allow_duplicate=True),
+         Output("selected-bid", "data"),
+         Output("scroll-target-display", "children"),
+         Output("current-month-view", "data", allow_duplicate=True),
+         Output("selected-year", "data", allow_duplicate=True)],  # selected-year 출력 추가
+        [Input({"type": "bid-btn", "index": ALL}, "n_clicks")],
+        [State({"type": "bid-btn", "index": ALL}, "data-month"),
+         State({"type": "bid-btn", "index": ALL}, "data-bid"),
+         State("selected-year", "data")],
+        prevent_initial_call=True
+    )
+    def update_selection(n_clicks, months, bids, selected_year):
+        ctx = callback_context
+        if not ctx.triggered or not any(n_clicks):
+            return no_update, no_update, no_update, no_update, no_update
+
+        try:
+            for i, n in enumerate(n_clicks):
+                if n:
+                    selected_month = months[i]
+                    selected_bid = bids[i]
+                    # 선택된 월(예: "2026-01")에서 연도 부분 추출
+                    new_selected_year = int(selected_month.split("-")[0])
+                    target_id = f"anchor-{selected_month}"
+
+                    selected_month_num = int(selected_month.split("-")[1])
+                    months_range = list(range(1, 13))
+                    month_groups = [months_range[i:i+4] for i in range(0, len(months_range), 4)]
+
+                    for idx, group in enumerate(month_groups):
+                        if selected_month_num in group:
+                            return selected_month, selected_bid, target_id, idx, new_selected_year
+        except Exception as e:
+            print("선택 오류:", e)
+
+        return no_update, no_update, no_update, no_update, no_update
+
+    # 자동 펼침 기능을 위한 새로운 콜백 추가 (하나만 열리도록 수정)
+    app.clientside_callback(
+        """
+        function(selectedBid) {
+            if (selectedBid) {
+                setTimeout(function() {
+                    // 월별 공고 리스트에서 모든 details 요소 닫기
+                    const allBidDetails = document.querySelectorAll('.month-bids-list details');
+                    for (let detail of allBidDetails) {
+                        if (detail.hasAttribute('open')) {
+                            detail.removeAttribute('open');
+                        }
+                    }
+                    
+                    // 다음 예정 입찰 정보 섹션에서 모든 기관 details도 닫기
+                    const allOrgDetails = document.querySelectorAll('.org-details');
+                    for (let orgDetail of allOrgDetails) {
+                        if (orgDetail.hasAttribute('open')) {
+                            orgDetail.removeAttribute('open');
+                        }
+                    }
+                    
+                    // 다음 예정 입찰 정보에서 현재 선택된 공고가 있는 기관만 열기
+                    const orgBidButtons = document.querySelectorAll('.bid-button');
+                    let foundOrg = false;
+                    
+                    for (let bidButton of orgBidButtons) {
+                        if (bidButton.innerText.includes(selectedBid)) {
+                            // 이 버튼이 속한 기관 details 찾기
+                            const orgDetails = bidButton.closest('.org-details');
+                            if (orgDetails) {
+                                orgDetails.setAttribute('open', '');
+                                foundOrg = true;
+                            }
+                            break;
+                        }
+                    }
+                    
+                    // 월별 공고 리스트에서 선택된 공고 찾아서 열기
+                    const summaries = document.querySelectorAll('.bid-summary');
+                    
+                    for (let summary of summaries) {
+                        if (summary.textContent.includes(selectedBid)) {
+                            const details = summary.closest('details');
+                            if (details) {
+                                details.setAttribute('open', '');
+                                
+                                summary.style.backgroundColor = '#ffeb3b';
+                                setTimeout(function() {
+                                    summary.style.backgroundColor = '';
+                                }, 1500);
+                            }
+                            break;
+                        }
+                    }
+                }, 500);
+            }
+            return '';
+        }
+        """,
+        Output("bid-auto-open-result", "children"),
+        Input("selected-bid", "data")
+    )
+
+def register_utility_callbacks(app, df):
+
+    app.clientside_callback(
+        """
+        function(targetId) {
+            if (targetId) {
+                setTimeout(function() {
+                    const element = document.getElementById(targetId);
+                    if (element) {
+                        element.scrollIntoView({behavior: 'smooth', block: 'start'});
+                        element.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+                        setTimeout(function() {
+                            element.style.backgroundColor = 'transparent';
+                        }, 2000);
+                        return '스크롤 성공';
+                    } else {
+                        return '요소를 찾을 수 없음';
+                    }
+                }, 300);
+            }
+            return '';
+        }
+        """,
+        Output("scroll-trigger-result", "children"),
+        Input("scroll-target-display", "children")
+    )
+
+def register_next_bid_navigation_callbacks(app, df):
+    @app.callback(
+        Output("current-page", "data"),
+        [Input("prev-page-btn", "n_clicks"),
+         Input("next-page-btn", "n_clicks")],
+        [State("current-page", "data"),
+         State("selected-year", "data")]
+    )
+    def update_next_bids_page(prev_clicks, next_clicks, current_page, selected_year):
+        ctx = callback_context
+        if not ctx.triggered:
+            return current_page
+
+        today = datetime.today()
+        next_month = datetime(today.year + (today.month == 12), (today.month % 12) + 1, 1)
+        
+        upcoming_df = df[df["예상_입찰일"] >= next_month].copy()
+        upcoming_df["예상_년월"] = upcoming_df["예상_입찰일"].dt.strftime("%Y-%m")
+        
+        월순서 = sorted(upcoming_df["예상_년월"].unique())
+        max_page = len(월순서) - 1
+        
+        button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        if button_id == "prev-page-btn" and prev_clicks and current_page > 0:
+            return current_page - 1
+        elif button_id == "next-page-btn" and next_clicks and current_page < max_page:
+            return current_page + 1
+        
+        return current_page
