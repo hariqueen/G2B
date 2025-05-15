@@ -379,3 +379,49 @@ body {
 .month-bids-list::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
+
+/* 예측 공고 관련 스타일 추가 */
+.bid-summary.prediction {
+    background-color: #e6f3ff;
+    border-left: 3px solid #2196F3;
+}
+
+.prediction-label {
+    color: #2196F3;
+    font-weight: 500;
+}
+
+/* 예측 아이콘 및 표시 스타일 */
+.prediction-icon {
+    color: #2196F3;
+    margin-right: 5px;
+}
+
+/* 차트 범례 스타일 */
+.prediction-legend {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-left: 15px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
+    border-radius: 2px;
+}
+
+.actual-color {
+    background-color: #1f77b4;
+}
+
+.prediction-color {
+    background-color: #ff7f0e;
+}

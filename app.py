@@ -10,11 +10,8 @@ import callbacks
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 server = app.server
 
-# 데이터 로딩 및 전처리
-df = preprocess_bid_data("DB/2324List.csv")
-df["예상_년월"] = df["예상_입찰일"].dt.strftime('%Y-%m')
-df["예상_연도"] = df["예상_입찰일"].dt.year
-df["예상_입찰월"] = df["예상_입찰일"].dt.month
+# 데이터 로딩 및 전처리 (예측 데이터 포함, 30년 예측)
+df = preprocess_bid_data("DB/2324List.csv", prediction_years=30)
 
 # 항상 고정된 월 그룹 사용: (1-4), (5-8), (9-12)
 months = list(range(1, 13))

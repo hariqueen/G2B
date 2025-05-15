@@ -11,7 +11,7 @@ def create_layout(initial_state):
     """
     return html.Div([
         # 상단 타이틀
-        html.H1("📅 입찰 공고 월별 시각화", className="app-title"),
+        html.H1("입찰 공고 목록 예측 대시보드", className="app-title"),
         
         # 연도 선택기
         html.Div([
@@ -19,6 +19,14 @@ def create_layout(initial_state):
             html.H3(id="year-display", className="year-display"),
             html.Button(">", id="next-year-btn", className="month-nav-btn"),
         ], className="year-selector"),
+        
+        # 예측 범례 추가
+        html.Div([
+            html.Div([
+                html.Span("실제 공고", className="legend-item"),
+                html.Span("🔮 예측 공고 (용역기간 종료 시점에 재발행 예상)", className="legend-item prediction-label"),
+            ], className="prediction-legend")
+        ], className="legend-container"),
         
         # 메인 컨텐츠 영역 (차트 + 다음 예정 입찰)
         html.Div([
@@ -68,6 +76,20 @@ def create_layout(initial_state):
             html.H3("📋 전체 공고 보기", className="section-title"),
             html.Div(id="full-table-container", className="full-table"),
         ], className="full-table-section"),
+        
+        # 예측 방법 설명
+        html.Div([
+            html.H3("🔮 예측 방법 설명", className="section-title"),
+            html.P([
+                "이 대시보드는 기존 공고의 용역기간을 기반으로 미래 공고를 예측합니다:",
+                html.Br(),
+                "1. 기존 공고의 용역기간이 종료되는 시점에 같은 공고가 다시 발행될 것으로 가정합니다.",
+                html.Br(),
+                "2. 예를 들어, 입찰월이 2025-12이고 용역기간이 12개월이면 2026-12월에 예측 공고가 표시됩니다.",
+                html.Br(),
+                "3. 예측 공고는 🔮 아이콘과 청색 테두리로 구분됩니다.",
+            ], className="prediction-explanation"),
+        ], className="prediction-section"),
         
         # 상태 저장용 hidden 요소들
         dcc.Store(id="selected-year", data=initial_state["year"]),
