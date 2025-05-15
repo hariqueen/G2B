@@ -444,7 +444,7 @@ def register_full_table_callbacks(app, df):
             Output("full-table-container", "children"),
             Input("selected-year", "data")
         )
-        def update_full_table(selected_year):
+    def update_full_table(selected_year):
             year_df = df[df["예상_연도"] == selected_year].copy()
             
             if year_df.empty:
