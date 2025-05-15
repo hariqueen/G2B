@@ -57,7 +57,14 @@ def register_info_callbacks(app, df):
     Input("selected-year", "data")
     )
     def update_monthly_chart(selected_year):
-        year_df = df[df["예상_연도"] == selected_year]
+        # 원본 데이터의 최대 연도 확인
+        max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
+        
+        # 선택한 연도가 원본 데이터 최대 연도보다 크면 예측 데이터만 표시
+        if selected_year > max_original_year:
+            year_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측"))]
+        else:
+            year_df = df[df["예상_연도"] == selected_year]
         
         # 해당 연도에 데이터가 없으면 빈 차트 반환
         if year_df.empty:
@@ -107,7 +114,7 @@ def register_info_callbacks(app, df):
             monthly,
             x="월",
             y="공고명",
-            title=f"{selected_year}년 월별 공고 수",
+            title=f"{selected_year}년 월별 공고 수" + (" (예측)" if selected_year > max_original_year else ""),
             labels={"공고명": "공고 수", "월": ""},
             color_discrete_sequence=["#1f77b4"]
         )
@@ -538,7 +545,15 @@ def register_full_table_callbacks(app, df):
     Input("selected-year", "data")
 )
     def update_full_table(selected_year):
-        year_df = df[df["예상_연도"] == selected_year].copy()
+    # 원본 데이터의 최대 연도 확인
+        max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
+        print(f"원본 데이터 최대 연도: {max_original_year}, 선택 연도: {selected_year}")
+        
+        # 선택한 연도가 원본 데이터 최대 연도보다 크면 예측 데이터만 표시
+        if selected_year > max_original_year:
+            year_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측"))].copy()
+        else:
+            year_df = df[df["예상_연도"] == selected_year].copy()
         
         if year_df.empty:
             return html.Div("선택한 연도에 해당하는 공고가 없습니다.", className="no-data-message")
@@ -550,9 +565,8 @@ def register_full_table_callbacks(app, df):
         current_year = datetime.today().year
         is_past_data = selected_year < current_year
         
-        # 과거 데이터인 경우 원본_입찰일 컬럼 추가 (있으면 유지)
-        if is_past_data and "원본_입찰일" not in year_df.columns:
-            year_df["원본_입찰일"] = pd.NaT
+        # 미래 데이터 (예측 데이터)인지 확인
+        is_future_data = selected_year > max_original_year
         
         # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
         column_mapping = {
@@ -566,35 +580,35 @@ def register_full_table_callbacks(app, df):
             "입찰금액_1순위": "입찰금액(원)"
         }
         
-        # 현재 또는 미래 연도에만 원본_입찰일 컬럼 추가 (과거는 제외)
-        if not is_past_data and "원본_입찰일" in year_df.columns:
+        # 예측 데이터인 경우 원본_입찰일 컬럼 추가 (과거 아닌 경우)
+        if is_future_data and "원본_입찰일" in year_df.columns:
             column_mapping["원본_입찰일"] = "원래입찰게시"
         
         # 필요한 컬럼만 선택하고 이름 변경
-        table_df = year_df[[col for col in column_mapping.keys() if col in year_df.columns]].copy()
-        table_df.columns = [column_mapping[col] for col in table_df.columns if col in column_mapping]
+        available_columns = [col for col in column_mapping.keys() if col in year_df.columns]
+        table_df = year_df[available_columns].copy()
+        table_df.columns = [column_mapping[col] for col in available_columns]
         
         # 입찰업체가 "예측"인 경우 빈 값으로 변경
         if "1순위 입찰업체" in table_df.columns:
             table_df["1순위 입찰업체"] = table_df["1순위 입찰업체"].apply(lambda x: "-" if x == "예측" else x)
         
         # 날짜 형식 변환
-        date_columns = ["입찰게시", "원래입찰게시"]
+        date_columns = [col for col in ["입찰게시", "원래입찰게시"] if col in table_df.columns]
         for col in date_columns:
-            if col in table_df.columns:
-                table_df[col] = pd.to_datetime(table_df[col]).dt.strftime('%Y-%m')
+            table_df[col] = pd.to_datetime(table_df[col]).dt.strftime('%Y-%m')
         
         # 테이블 컬럼 설정
         columns = []
-        for col_id, col_name in zip(table_df.columns, table_df.columns):
+        for col_id in table_df.columns:
             if col_id in ["입찰게시", "원래입찰게시"]:
-                columns.append({"name": col_name, "id": col_id, "type": "text"})
+                columns.append({"name": col_id, "id": col_id, "type": "text"})
             elif col_id in ["공고명", "실수요기관", "1순위 입찰업체"]:
-                columns.append({"name": col_name, "id": col_id, "type": "text", "filter_options": {"case": "insensitive"}})
+                columns.append({"name": col_id, "id": col_id, "type": "text", "filter_options": {"case": "insensitive"}})
             elif col_id in ["계약금액(원)", "입찰금액(원)"]:
-                columns.append({"name": col_name, "id": col_id, "type": "numeric", "format": {"specifier": ","}})
+                columns.append({"name": col_id, "id": col_id, "type": "numeric", "format": {"specifier": ","}})
             else:
-                columns.append({"name": col_name, "id": col_id, "type": "numeric"})
+                columns.append({"name": col_id, "id": col_id, "type": "numeric"})
 
         table = dash_table.DataTable(
             id='full-data-table',
@@ -658,10 +672,13 @@ def register_full_table_callbacks(app, df):
         # 공고 수 계산
         total_count = len(table_df)
         
+        # 제목에 예측 표시 추가 (미래 데이터인 경우)
+        title_text = f"{selected_year}년 공고 총 {total_count}건" + (" (예측)" if is_future_data else "")
+        
         return html.Div([
             html.Div([
                 html.P([
-                    f"{selected_year}년 공고 총 {total_count}건",
+                    title_text,
                 ], className="table-summary-text"),
             ], className="table-summary-container"),
             html.Div(table, className="table-container")

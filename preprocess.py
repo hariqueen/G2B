@@ -104,6 +104,10 @@ def generate_prediction_data(df, prediction_years=30):
     today = datetime.today()
     max_year = today.year + prediction_years
     
+    # 원본 데이터의 최대 연도 확인 (중요!)
+    max_original_year = df["예상_연도"].max()
+    print(f"원본 데이터 최대 연도: {max_original_year}")
+    
     # 용역기간이 있는 공고만 대상으로 함
     valid_df = df[df["용역기간(개월)"] > 0].copy()
     
@@ -127,7 +131,7 @@ def generate_prediction_data(df, prediction_years=30):
         # 새로운 예측 데이터 생성
         new_row = row.copy()
         
-        # 예측 입찰일로 예상_입찰일(=입찰게시) 설정 (중요 변경!)
+        # 예측 입찰일로 예상_입찰일(=입찰게시) 설정
         new_row["예상_입찰일"] = predicted_date
         new_row["예상_연도"] = predicted_date.year
         new_row["예상_입찰월"] = predicted_date.month
@@ -139,17 +143,24 @@ def generate_prediction_data(df, prediction_years=30):
         new_row["입찰결과_1순위"] = "예측"
         new_row["입찰금액_1순위"] = 0
         
-        # 원본 입찰일을 별도 컬럼에 저장 (선택 사항)
+        # 원본 입찰일을 별도 컬럼에 저장
         new_row["원본_입찰일"] = row["예상_입찰일"]
+        
+        # 예측 플래그 추가 (명시적으로 표시)
+        new_row["is_prediction"] = True
         
         # 예측 데이터 추가
         predictions.append(new_row)
     
     # 예측 데이터가 없으면 빈 데이터프레임 반환
     if not predictions:
-        return pd.DataFrame(columns=df.columns)
+        return pd.DataFrame(columns=df.columns + ["is_prediction"])
     
     # 예측 데이터를 데이터프레임으로 변환
     prediction_df = pd.DataFrame(predictions)
+    
+    # 원본 데이터의 최대 연도보다 큰 연도의 데이터만 유지 (중요!)
+    prediction_df = prediction_df[prediction_df["예상_연도"] > max_original_year]
+    print(f"최종 예측 데이터 수: {len(prediction_df)}")
     
     return prediction_df
