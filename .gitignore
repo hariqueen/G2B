@@ -1,14 +1,14 @@
 # 환경 변수 파일
 .env
 
-DB/*.csv
-!DB/2324List.csv
-
-# 생성된 CSV 파일들
+# 생성된 파일들
 *.csv
 *.gsheet
 *.xlsx
 *.xls
+
+# 예외 처리 - 이 파일은 무시하지 않음
+!DB/2324List.csv
 
 # Python 관련 파일
 __pycache__/
