@@ -20,13 +20,6 @@ def create_layout(initial_state):
             html.Button(">", id="next-year-btn", className="month-nav-btn"),
         ], className="year-selector"),
         
-        # 예측 범례 추가
-        html.Div([
-            html.Div([
-                html.Span("실제 공고", className="legend-item"),
-            ], className="prediction-legend")
-        ], className="legend-container"),
-        
         # 메인 컨텐츠 영역 (차트 + 다음 예정 입찰)
         html.Div([
             # 왼쪽 컬럼 - 차트
