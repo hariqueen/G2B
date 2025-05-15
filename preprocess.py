@@ -92,7 +92,6 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
 def generate_prediction_data(df, prediction_years=30):
     """
     용역기간이 끝나는 시점에 같은 공고가 다시 올라온다고 가정하여 예측 데이터 생성
-    중요 수정: 원본 연도는 유지하고 예측된 입찰일만 용역기간 후로 변경
     
     Args:
         df (pd.DataFrame): 원본 데이터프레임
@@ -125,10 +124,13 @@ def generate_prediction_data(df, prediction_years=30):
         if predicted_date.year > max_year:
             continue
         
-        # 새로운 예측 데이터 생성 - 중요 수정: 예측 입찰일은 별도 컬럼에 저장하고, 원래 입찰일은 그대로 유지
+        # 새로운 예측 데이터 생성
         new_row = row.copy()
-        new_row["예측_입찰일"] = predicted_date  # 예측된 다음 입찰일
-        # 원래 입찰일은 변경하지 않음 - 원본 데이터 그대로 유지
+        
+        # 예측 입찰일로 예상_입찰일(=입찰게시) 설정 (중요 변경!)
+        new_row["예상_입찰일"] = predicted_date
+        new_row["예상_연도"] = predicted_date.year
+        new_row["예상_입찰월"] = predicted_date.month
         
         # 공고명에 예측 표시 추가
         new_row["공고명"] = f"{row['공고명']} (예측)"
@@ -136,6 +138,9 @@ def generate_prediction_data(df, prediction_years=30):
         # 입찰 결과 데이터 초기화 (예측이므로 결과는 없음)
         new_row["입찰결과_1순위"] = "예측"
         new_row["입찰금액_1순위"] = 0
+        
+        # 원본 입찰일을 별도 컬럼에 저장 (선택 사항)
+        new_row["원본_입찰일"] = row["예상_입찰일"]
         
         # 예측 데이터 추가
         predictions.append(new_row)
@@ -146,9 +151,5 @@ def generate_prediction_data(df, prediction_years=30):
     
     # 예측 데이터를 데이터프레임으로 변환
     prediction_df = pd.DataFrame(predictions)
-    
-    # 예측 입찰일 컬럼 추가
-    prediction_df["예측_입찰연도"] = prediction_df["예측_입찰일"].dt.year
-    prediction_df["예측_입찰월"] = prediction_df["예측_입찰일"].dt.month
     
     return prediction_df

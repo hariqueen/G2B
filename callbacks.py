@@ -59,6 +59,35 @@ def register_info_callbacks(app, df):
     def update_monthly_chart(selected_year):
         year_df = df[df["예상_연도"] == selected_year]
         
+        # 해당 연도에 데이터가 없으면 빈 차트 반환
+        if year_df.empty:
+            # 모든 월 (1-12) 생성
+            all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
+            all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
+            all_months["공고명"] = 0
+            
+            # 빈 차트 생성
+            fig = px.bar(
+                all_months,
+                x="월",
+                y="공고명",
+                title=f"{selected_year}년 월별 공고 수",
+                labels={"공고명": "공고 수", "월": ""},
+                color_discrete_sequence=["#1f77b4"]
+            )
+            
+            fig.update_layout(
+                title_font_size=20,
+                xaxis_title=None,
+                yaxis_title="공고 수",
+                plot_bgcolor="white",
+                margin=dict(l=20, r=20, t=50, b=20),
+                height=400,
+                showlegend=False
+            )
+            
+            return fig
+        
         # 원본 데이터와 예측 데이터 구분하지 않고 통합
         monthly = year_df.groupby("예상_입찰월")["공고명"].count().reset_index()
         
@@ -70,12 +99,8 @@ def register_info_callbacks(app, df):
         all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
         
         # 데이터 병합
-        if not monthly.empty:
-            monthly = pd.merge(all_months, monthly, on=["예상_입찰월", "월"], how="left")
-            monthly["공고명"] = monthly["공고명"].fillna(0)
-        else:
-            monthly = all_months.copy()
-            monthly["공고명"] = 0
+        monthly = pd.merge(all_months, monthly, on=["예상_입찰월", "월"], how="left")
+        monthly["공고명"] = monthly["공고명"].fillna(0)
         
         # 그래프 생성 - 단일 색상으로 통합
         fig = px.bar(
@@ -84,7 +109,7 @@ def register_info_callbacks(app, df):
             y="공고명",
             title=f"{selected_year}년 월별 공고 수",
             labels={"공고명": "공고 수", "월": ""},
-            color_discrete_sequence=["#1f77b4"]  # 단일 색상으로 통일
+            color_discrete_sequence=["#1f77b4"]
         )
         
         # 레이아웃 설정
@@ -95,11 +120,8 @@ def register_info_callbacks(app, df):
             plot_bgcolor="white",
             margin=dict(l=20, r=20, t=50, b=20),
             height=400,
-            barmode="stack"  # 그룹이 아닌 스택 모드로 변경
+            showlegend=False
         )
-        
-        # 범례 제거 (예측/실제 구분 없어짐)
-        fig.update_layout(showlegend=False)
         
         return fig
 
@@ -524,22 +546,19 @@ def register_full_table_callbacks(app, df):
         # 테이블에 표시할 데이터 정렬
         year_df = year_df.sort_values(by="예상_입찰일")
         
-        # 필요한 컬럼 선택 및 이름 변경
-        # 예측_입찰일이 없으면 용역기간을 기반으로 계산
-        if "예측_입찰일" not in year_df.columns:
-            def calculate_predicted_date(row):
-                if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                    return row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
-                return pd.NaT
-                
-            year_df["예측_입찰일"] = year_df.apply(calculate_predicted_date, axis=1)
+        # 현재 연도보다 이전 연도인지 확인 (과거 데이터)
+        current_year = datetime.today().year
+        is_past_data = selected_year < current_year
+        
+        # 과거 데이터인 경우 원본_입찰일 컬럼 추가 (있으면 유지)
+        if is_past_data and "원본_입찰일" not in year_df.columns:
+            year_df["원본_입찰일"] = pd.NaT
         
         # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
         column_mapping = {
             "공고명": "공고명",
             "실수요기관": "실수요기관",
-            "예상_입찰일": "입찰게시",  # 이름 변경
-            "예측_입찰일": "(예측)입찰게시",  # 예측 입찰일 컬럼
+            "예상_입찰일": "입찰게시",
             "물동량 평균": "평균M/M",
             "용역기간(개월)": "용역기간(개월)",
             "계약 기간 내": "계약금액(원)",
@@ -547,32 +566,35 @@ def register_full_table_callbacks(app, df):
             "입찰금액_1순위": "입찰금액(원)"
         }
         
+        # 현재 또는 미래 연도에만 원본_입찰일 컬럼 추가 (과거는 제외)
+        if not is_past_data and "원본_입찰일" in year_df.columns:
+            column_mapping["원본_입찰일"] = "원래입찰게시"
+        
         # 필요한 컬럼만 선택하고 이름 변경
-        table_df = year_df[list(column_mapping.keys())].copy()
-        table_df.columns = [column_mapping[col] for col in table_df.columns]
+        table_df = year_df[[col for col in column_mapping.keys() if col in year_df.columns]].copy()
+        table_df.columns = [column_mapping[col] for col in table_df.columns if col in column_mapping]
         
         # 입찰업체가 "예측"인 경우 빈 값으로 변경
-        table_df["1순위 입찰업체"] = table_df["1순위 입찰업체"].apply(lambda x: "-" if x == "예측" else x)
+        if "1순위 입찰업체" in table_df.columns:
+            table_df["1순위 입찰업체"] = table_df["1순위 입찰업체"].apply(lambda x: "-" if x == "예측" else x)
         
         # 날짜 형식 변환
-        if "입찰게시" in table_df.columns:
-            table_df["입찰게시"] = table_df["입찰게시"].dt.strftime('%Y-%m')
+        date_columns = ["입찰게시", "원래입찰게시"]
+        for col in date_columns:
+            if col in table_df.columns:
+                table_df[col] = pd.to_datetime(table_df[col]).dt.strftime('%Y-%m')
         
-        if "(예측)입찰게시" in table_df.columns:
-            table_df["(예측)입찰게시"] = table_df["(예측)입찰게시"].dt.strftime('%Y-%m')
-        
-        # 테이블 컬럼 설정 개선
-        columns = [
-            {"name": "공고명", "id": "공고명", "type": "text", "filter_options": {"case": "insensitive"}},
-            {"name": "실수요기관", "id": "실수요기관", "type": "text", "filter_options": {"case": "insensitive"}},
-            {"name": "입찰게시", "id": "입찰게시", "type": "text"},  
-            {"name": "(예측)입찰게시", "id": "(예측)입찰게시", "type": "text"}, 
-            {"name": "평균M/M", "id": "평균M/M", "type": "numeric"},
-            {"name": "용역기간(개월)", "id": "용역기간(개월)", "type": "numeric"},
-            {"name": "계약금액(원)", "id": "계약금액(원)", "type": "numeric", "format": {"specifier": ","}},
-            {"name": "1순위 입찰업체", "id": "1순위 입찰업체", "type": "text", "filter_options": {"case": "insensitive"}},
-            {"name": "입찰금액(원)", "id": "입찰금액(원)", "type": "numeric", "format": {"specifier": ","}}
-        ]
+        # 테이블 컬럼 설정
+        columns = []
+        for col_id, col_name in zip(table_df.columns, table_df.columns):
+            if col_id in ["입찰게시", "원래입찰게시"]:
+                columns.append({"name": col_name, "id": col_id, "type": "text"})
+            elif col_id in ["공고명", "실수요기관", "1순위 입찰업체"]:
+                columns.append({"name": col_name, "id": col_id, "type": "text", "filter_options": {"case": "insensitive"}})
+            elif col_id in ["계약금액(원)", "입찰금액(원)"]:
+                columns.append({"name": col_name, "id": col_id, "type": "numeric", "format": {"specifier": ","}})
+            else:
+                columns.append({"name": col_name, "id": col_id, "type": "numeric"})
 
         table = dash_table.DataTable(
             id='full-data-table',
@@ -620,7 +642,7 @@ def register_full_table_callbacks(app, df):
             filter_options={"placeholder_text": "검색..."},
             sort_action="native",
             sort_mode="multi",
-            sort_by=[{"column_id": "입찰게시", "direction": "asc"}],  # 기본 정렬
+            sort_by=[{"column_id": "입찰게시", "direction": "asc"}],
             page_action='none',
             export_format="csv",
             export_headers="display",
@@ -633,7 +655,7 @@ def register_full_table_callbacks(app, df):
             tooltip_duration=None
         )
         
-        # 공고 수 계산 (예측 여부에 따른 구분 제거)
+        # 공고 수 계산
         total_count = len(table_df)
         
         return html.Div([
