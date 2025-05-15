@@ -162,9 +162,10 @@ def register_info_callbacks(app, df):
         if upcoming_df.empty:
             return "다음 입찰 예상월: 없음", "🏢 실수요기관 수: 0곳", []
         
-        upcoming_df["예상_년월"] = upcoming_df["예상_입찰일"].dt.strftime("%Y-%m")
+        # NaT 값 처리 추가
+        upcoming_df["예상_년월"] = upcoming_df["예상_입찰일"].dt.strftime("%Y-%m").fillna("")
         
-        월순서 = sorted(upcoming_df["예상_년월"].unique())
+        월순서 = sorted([m for m in upcoming_df["예상_년월"].unique() if m]) # 빈 문자열 제외
         
         # 현재 페이지에 해당하는 월 선택
         if 월순서 and current_page < len(월순서):
@@ -193,7 +194,7 @@ def register_info_callbacks(app, df):
         if "원본_입찰일" not in target_df.columns:
             target_df["원본_입찰일"] = pd.NaT
             for idx, row in target_df.iterrows():
-                if "예측" in row["공고명"]:
+                if "예측" in str(row["공고명"]):
                     if pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
                         target_df.at[idx, "원본_입찰일"] = row["예상_입찰일"] - pd.DateOffset(months=int(row["용역기간(개월)"]))
         
@@ -202,23 +203,31 @@ def register_info_callbacks(app, df):
             기관공고_df = target_df[target_df["실수요기관"] == name]
             공고_리스트 = 기관공고_df[["공고명", "예상_입찰일", "예상_년월", "용역기간(개월)", "원본_입찰일"]].sort_values("예상_입찰일")
             
+            buttons = []
+            for i, (_, row) in enumerate(공고_리스트.iterrows()):
+                # NaT 값 안전하게 처리
+                data_year = str(row["예상_입찰일"].year) if pd.notna(row["예상_입찰일"]) else ""
+                data_month = row["예상_년월"] if pd.notna(row["예상_년월"]) else ""
+                original_month = row["원본_입찰일"].strftime('%Y-%m') if pd.notna(row["원본_입찰일"]) else "-"
+                
+                button = html.Button(
+                    f"{row['공고명']}",
+                    id={"type": "bid-btn", "index": f"{name}_{i}"},
+                    className="bid-button",
+                    **{
+                        "data-month": data_month,
+                        "data-year": data_year,
+                        "data-bid": str(row['공고명']),
+                        "data-original-month": original_month
+                    }
+                )
+                buttons.append(button)
+            
             org_details = html.Details([
                 html.Summary(name, className="org-name"),
                 html.Div([
                     html.H4(f"🏢 {name} - 예정 공고", className="org-title"),
-                    html.Div([
-                        html.Button(
-                            f"{row['공고명']}",
-                            id={"type": "bid-btn", "index": f"{name}_{i}"},
-                            className="bid-button",
-                            **{
-                                "data-month": row["예상_년월"], 
-                                "data-year": row["예상_년월"].split("-")[0], 
-                                "data-bid": row["공고명"],
-                                "data-original-month": row["원본_입찰일"].strftime('%Y-%m') if pd.notna(row["원본_입찰일"]) else "-"
-                            }
-                        ) for i, (_, row) in enumerate(공고_리스트.iterrows())
-                    ], className="bid-buttons-container")
+                    html.Div(buttons, className="bid-buttons-container")
                 ], className="org-details-content")
             ], className="org-details")
             
