@@ -24,7 +24,6 @@ def create_layout(initial_state):
         html.Div([
             html.Div([
                 html.Span("실제 공고", className="legend-item"),
-                html.Span("🔮 예측 공고 (용역기간 종료 시점에 재발행 예상)", className="legend-item prediction-label"),
             ], className="prediction-legend")
         ], className="legend-container"),
         

@@ -325,7 +325,6 @@ def register_month_navigation_callbacks(app, df):
                         html.Div([
                             html.P(f"실수요기관: {row['실수요기관'] if pd.notna(row['실수요기관']) else '-'}", className="bid-detail"),
                             html.P(f"입찰월: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
-                            html.P(f"예측 여부: {'예측 공고' if is_prediction else '실제 공고'}", className=f"bid-detail {'prediction-label' if is_prediction else ''}"),
                             html.P(f"M/M: {row['물동량 평균'] if pd.notna(row['물동량 평균']) else '-'}", className="bid-detail"),
                             html.P(f"용역기간: {row['용역기간(개월)'] if pd.notna(row['용역기간(개월)']) else '-'}{'개월' if pd.notna(row['용역기간(개월)']) else ''}", className="bid-detail"),
                             html.P(f"계약금액: {row['계약 기간 내'] if pd.notna(row['계약 기간 내']) else '-'}{'원' if pd.notna(row['계약 기간 내']) else ''}", className="bid-detail"),
