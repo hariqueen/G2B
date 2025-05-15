@@ -273,7 +273,7 @@ def register_bid_selection_callbacks(app, df):
          Output("selected-bid", "data"),
          Output("scroll-target-display", "children"),
          Output("current-month-view", "data", allow_duplicate=True),
-         Output("selected-year", "data", allow_duplicate=True)],  # selected-year 출력 추가
+         Output("selected-year", "data", allow_duplicate=True)],
         [Input({"type": "bid-btn", "index": ALL}, "n_clicks")],
         [State({"type": "bid-btn", "index": ALL}, "data-month"),
          State({"type": "bid-btn", "index": ALL}, "data-bid"),
@@ -290,10 +290,9 @@ def register_bid_selection_callbacks(app, df):
                 if n:
                     selected_month = months[i]
                     selected_bid = bids[i]
-                    # 선택된 월(예: "2026-01")에서 연도 부분 추출
                     new_selected_year = int(selected_month.split("-")[0])
                     target_id = f"anchor-{selected_month}"
-
+                    
                     selected_month_num = int(selected_month.split("-")[1])
                     months_range = list(range(1, 13))
                     month_groups = [months_range[i:i+4] for i in range(0, len(months_range), 4)]
@@ -371,11 +370,11 @@ def register_bid_selection_callbacks(app, df):
     )
 
 def register_utility_callbacks(app, df):
-
     app.clientside_callback(
         """
-        function(targetId) {
+        function(targetId, selectedYear) {
             if (targetId) {
+                // 연도 변경 후 DOM이 업데이트되길 기다리기 위해 타임아웃 증가
                 setTimeout(function() {
                     const element = document.getElementById(targetId);
                     if (element) {
@@ -386,15 +385,27 @@ def register_utility_callbacks(app, df):
                         }, 2000);
                         return '스크롤 성공';
                     } else {
-                        return '요소를 찾을 수 없음';
+                        // 첫 시도에서 요소를 찾을 수 없으면 다시 시도
+                        setTimeout(function() {
+                            const retryElement = document.getElementById(targetId);
+                            if (retryElement) {
+                                retryElement.scrollIntoView({behavior: 'smooth', block: 'start'});
+                                retryElement.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+                                setTimeout(function() {
+                                    retryElement.style.backgroundColor = 'transparent';
+                                }, 2000);
+                            }
+                        }, 800);  // 추가 지연 시간
+                        return '요소를 찾을 수 없음 - 재시도';
                     }
-                }, 300);
+                }, 600);  // 지연 시간 증가
             }
             return '';
         }
         """,
         Output("scroll-trigger-result", "children"),
-        Input("scroll-target-display", "children")
+        [Input("scroll-target-display", "children"),
+         Input("selected-year", "data")]  # selected-year도 입력으로 추가
     )
 
 def register_next_bid_navigation_callbacks(app, df):
