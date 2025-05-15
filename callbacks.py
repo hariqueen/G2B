@@ -141,11 +141,29 @@ def register_info_callbacks(app, df):
     )
     def update_next_bids(selected_year, current_page):
         today = datetime.today()
+        
+        # 원본 데이터의 최대 연도 확인
+        max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
+        
+        # 선택한 연도가 원본 데이터 최대 연도보다 큰 경우 (예측 데이터)
+        is_future_data = selected_year > max_original_year
+        
+        # 현재 월 이후의
         next_month = datetime(today.year + (today.month == 12), (today.month % 12) + 1, 1)
-
-        upcoming_df = df[df["예상_입찰일"] >= next_month].copy()
+        
+        if is_future_data:
+            # 미래 연도인 경우 해당 연도의 예측 데이터만 표시
+            upcoming_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측"))].copy()
+        else:
+            # 현재 연도이면 현재 월 이후 데이터만 표시
+            upcoming_df = df[df["예상_입찰일"] >= next_month].copy()
+        
+        # 데이터가 없는 경우
+        if upcoming_df.empty:
+            return "다음 입찰 예상월: 없음", "🏢 실수요기관 수: 0곳", []
+        
         upcoming_df["예상_년월"] = upcoming_df["예상_입찰일"].dt.strftime("%Y-%m")
-
+        
         월순서 = sorted(upcoming_df["예상_년월"].unique())
         
         # 현재 페이지에 해당하는 월 선택
@@ -154,37 +172,36 @@ def register_info_callbacks(app, df):
             target_months = [current_month]
         else:
             target_months = []
-
+        
+        # 타겟 월에 해당하는 데이터가 없는 경우
+        if not target_months:
+            return "다음 입찰 예상월: 없음", "🏢 실수요기관 수: 0곳", []
+        
         target_df = upcoming_df[upcoming_df["예상_년월"].isin(target_months)]
         target_월 = target_months[0] if target_months else "N/A"
         기관_리스트 = sorted(target_df["실수요기관"].unique())
-
+        
         start = 0
         end = len(기관_리스트)
         page_기관 = 기관_리스트[start:end]
         기관_총수 = len(기관_리스트)
         
-        # 공고 수 계산 (예측 구분 제거)
+        # 공고 수 계산
         total_count = len(target_df)
-
+        
+        # 예측 데이터에 대한 원본 입찰일 계산
+        if "원본_입찰일" not in target_df.columns:
+            target_df["원본_입찰일"] = pd.NaT
+            for idx, row in target_df.iterrows():
+                if "예측" in row["공고명"]:
+                    if pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                        target_df.at[idx, "원본_입찰일"] = row["예상_입찰일"] - pd.DateOffset(months=int(row["용역기간(개월)"]))
+        
         org_list = []
         for name in page_기관:
             기관공고_df = target_df[target_df["실수요기관"] == name]
-            공고_리스트 = 기관공고_df[["공고명", "예상_입찰일", "예상_년월", "용역기간(개월)"]].sort_values("예상_입찰일")
-
-            # 각 공고에 대해 예측 입찰일 계산
-            for i, (_, row) in enumerate(공고_리스트.iterrows()):
-                # 예측 입찰일 계산 - "예측_입찰일" 컬럼이 있으면 그 값을 사용, 없으면 계산
-                if "예측_입찰일" in 기관공고_df.columns and pd.notna(row.get("예측_입찰일")):
-                    공고_리스트.at[i, "예측_입찰일"] = row["예측_입찰일"]
-                else:
-                    # 용역기간 기반 예측 계산
-                    if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                        예측일 = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
-                        공고_리스트.at[i, "예측_입찰일"] = 예측일
-                    else:
-                        공고_리스트.at[i, "예측_입찰일"] = pd.NaT
-
+            공고_리스트 = 기관공고_df[["공고명", "예상_입찰일", "예상_년월", "용역기간(개월)", "원본_입찰일"]].sort_values("예상_입찰일")
+            
             org_details = html.Details([
                 html.Summary(name, className="org-name"),
                 html.Div([
@@ -198,17 +215,17 @@ def register_info_callbacks(app, df):
                                 "data-month": row["예상_년월"], 
                                 "data-year": row["예상_년월"].split("-")[0], 
                                 "data-bid": row["공고명"],
-                                "data-predicted-month": row["예측_입찰일"].strftime('%Y-%m') if pd.notna(row["예측_입찰일"]) else "-"
+                                "data-original-month": row["원본_입찰일"].strftime('%Y-%m') if pd.notna(row["원본_입찰일"]) else "-"
                             }
                         ) for i, (_, row) in enumerate(공고_리스트.iterrows())
                     ], className="bid-buttons-container")
                 ], className="org-details-content")
             ], className="org-details")
-
+            
             org_list.append(org_details)
-
-        # 월 표시 (예측 정보 제거)
-        month_display = f"다음 입찰 예상월: {target_월} (총 {total_count}건)"
+        
+        # 월 표시 (예측 정보 추가)
+        month_display = f"다음 입찰 예상월: {target_월} (총 {total_count}건)" + (" (예측)" if is_future_data else "")
                 
         return month_display, f"🏢 실수요기관 수: {기관_총수}곳", org_list
 
@@ -568,6 +585,16 @@ def register_full_table_callbacks(app, df):
         # 미래 데이터 (예측 데이터)인지 확인
         is_future_data = selected_year > max_original_year
         
+        # 예측데이터가 없으면 원본_입찰일 계산
+        if "원본_입찰일" not in year_df.columns:
+            year_df["원본_입찰일"] = pd.NaT
+            # 예측 공고인 경우 원본 입찰일 추정
+            for idx, row in year_df.iterrows():
+                if "예측" in row["공고명"]:
+                    # 용역기간을 거꾸로 계산하여 원본 입찰일 추정
+                    if pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                        year_df.at[idx, "원본_입찰일"] = row["예상_입찰일"] - pd.DateOffset(months=int(row["용역기간(개월)"]))
+        
         # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
         column_mapping = {
             "공고명": "공고명",
@@ -580,8 +607,8 @@ def register_full_table_callbacks(app, df):
             "입찰금액_1순위": "입찰금액(원)"
         }
         
-        # 예측 데이터인 경우 원본_입찰일 컬럼 추가 (과거 아닌 경우)
-        if is_future_data and "원본_입찰일" in year_df.columns:
+        # 모든 데이터에 원래입찰게시 컬럼 추가 (중요 변경)
+        if "원본_입찰일" in year_df.columns:
             column_mapping["원본_입찰일"] = "원래입찰게시"
         
         # 필요한 컬럼만 선택하고 이름 변경
