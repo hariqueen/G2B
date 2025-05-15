@@ -15,9 +15,9 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
     # 용역기간 정수형으로 변환
     df["용역기간(개월)"] = df["용역기간(개월)"].fillna(0).astype(int)
     
-    # 날짜 형식 변환
-    df["공고_시작일"] = pd.to_datetime(df["년"].astype(str) + "-" + df["월"].astype(str) + "-01")
-    df["예상_입찰일"] = df["공고_시작일"] + pd.to_timedelta(df["용역기간(개월)"] * 30, unit='D')
+    # 날짜 형식 변환 - 정확한 연도와 월 사용
+    df["공고_시작일"] = pd.to_datetime(df["년"].astype(str) + "-" + df["월"].astype(str).str.zfill(2) + "-01")
+    df["예상_입찰일"] = df["공고_시작일"]  # 입찰일은 공고 시작일과 동일하게 설정
     
     # 숫자 데이터 정리 함수
     def clean_numeric(value):
@@ -61,8 +61,20 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
     for col in text_columns:
         df_processed[col] = df_processed[col].fillna("")
     
-    # 예측 데이터 생성
-    df_prediction = generate_prediction_data(df_processed, prediction_years)
+    # 현재 데이터 확인 - 연도별 데이터 개수 출력
+    연도별_데이터수 = df_processed.groupby("예상_연도")["공고명"].count()
+    print("원본 데이터 연도별 개수:")
+    print(연도별_데이터수)
+    
+    # 예측 데이터 생성 - 현재 데이터가 있는 연도는 제외
+    현재_데이터_연도 = set(df_processed["예상_연도"].unique())
+    df_prediction = generate_prediction_data(df_processed, prediction_years, 현재_데이터_연도)
+    
+    # 예측 데이터 확인
+    if not df_prediction.empty:
+        예측_연도별_데이터수 = df_prediction.groupby("예상_연도")["공고명"].count()
+        print("예측 데이터 연도별 개수:")
+        print(예측_연도별_데이터수)
     
     # 원본 데이터와 예측 데이터 병합
     df_combined = pd.concat([df_processed, df_prediction], ignore_index=True)
@@ -70,20 +82,38 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
     # 예상_년월 컬럼 추가
     df_combined["예상_년월"] = df_combined["예상_입찰일"].dt.strftime('%Y-%m')
     
+    # 최종 결과 확인
+    최종_연도별_데이터수 = df_combined.groupby("예상_연도")["공고명"].count()
+    print("최종 데이터 연도별 개수:")
+    print(최종_연도별_데이터수)
+    
     return df_combined
 
-def generate_prediction_data(df, prediction_years=30):
+
+def generate_prediction_data(df, prediction_years=30, 현재_데이터_연도=None):
     """
     용역기간이 끝나는 시점에 같은 공고가 다시 올라온다고 가정하여 예측 데이터 생성
-    미래 연도에만 예측 데이터 표시 (현재 또는 과거 연도에는 예측 데이터 제외)
+    
+    Args:
+        df (pd.DataFrame): 원본 데이터프레임
+        prediction_years (int): 예측할 최대 년수
+        현재_데이터_연도 (set): 현재 데이터가 있는 연도 집합
+    
+    Returns:
+        pd.DataFrame: 예측 데이터
     """
     predictions = []
     today = datetime.today()
-    current_year = today.year
     max_year = today.year + prediction_years
+    
+    # 현재 데이터가 있는 연도 집합이 None이면 비어있는 집합으로 초기화
+    if 현재_데이터_연도 is None:
+        현재_데이터_연도 = set()
     
     # 용역기간이 있는 공고만 대상으로 함
     valid_df = df[df["용역기간(개월)"] > 0].copy()
+    
+    print(f"예측 대상 공고 수: {len(valid_df)}")
     
     for _, row in valid_df.iterrows():
         current_date = row["예상_입찰일"]
@@ -104,24 +134,28 @@ def generate_prediction_data(df, prediction_years=30):
             if next_date.year > max_year:
                 break
                 
-            # 중요: 미래 연도에만 예측 데이터 추가 (현재 연도보다 큰 연도만)
-            if next_date.year > current_year:
-                # 새로운 예측 데이터 생성
-                new_row = row.copy()
-                new_row["공고_시작일"] = next_date
-                new_row["예상_입찰일"] = next_date
-                new_row["예상_연도"] = next_date.year
-                new_row["예상_입찰월"] = next_date.month
+            # 이미 해당 연도에 현재 데이터가 있으면 예측 제외
+            if next_date.year in 현재_데이터_연도:
+                current_date = next_date
+                cycle += 1
+                continue
                 
-                # 공고명에 예측 표시 추가
-                new_row["공고명"] = f"{row['공고명']} (예측 {cycle}차)"
-                
-                # 입찰 결과 데이터 초기화 (예측이므로 결과는 없음)
-                new_row["입찰결과_1순위"] = "예측"
-                new_row["입찰금액_1순위"] = 0
-                
-                # 예측 데이터 추가
-                predictions.append(new_row)
+            # 새로운 예측 데이터 생성
+            new_row = row.copy()
+            new_row["공고_시작일"] = next_date
+            new_row["예상_입찰일"] = next_date
+            new_row["예상_연도"] = next_date.year
+            new_row["예상_입찰월"] = next_date.month
+            
+            # 공고명에 예측 표시 추가
+            new_row["공고명"] = f"{row['공고명']} (예측 {cycle}차)"
+            
+            # 입찰 결과 데이터 초기화 (예측이므로 결과는 없음)
+            new_row["입찰결과_1순위"] = "예측"
+            new_row["입찰금액_1순위"] = 0
+            
+            # 예측 데이터 추가
+            predictions.append(new_row)
             
             # 다음 사이클 준비
             current_date = next_date
