@@ -594,21 +594,34 @@ def register_full_table_callbacks(app, df):
         # 미래 데이터 (예측 데이터)인지 확인
         is_future_data = selected_year > max_original_year
         
-        # 예측데이터가 없으면 원본_입찰일 계산
-        if "원본_입찰일" not in year_df.columns:
-            year_df["원본_입찰일"] = pd.NaT
-            # 예측 공고인 경우 원본 입찰일 추정
-            for idx, row in year_df.iterrows():
-                if "예측" in row["공고명"]:
-                    # 용역기간을 거꾸로 계산하여 원본 입찰일 추정
+        # 예측 데이터 처리
+        for idx, row in year_df.iterrows():
+            # 예측 공고인 경우
+            if "예측" in str(row["공고명"]):
+                # 원본_입찰일이 있는지 확인하고 없으면 계산
+                if "원본_입찰일" not in year_df.columns or pd.isna(row.get("원본_입찰일")):
                     if pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                        year_df.at[idx, "원본_입찰일"] = row["예상_입찰일"] - pd.DateOffset(months=int(row["용역기간(개월)"]))
+                        # 예측일에서 용역기간을 빼서 원래 입찰일 계산
+                        original_date = row["예상_입찰일"] - pd.DateOffset(months=int(row["용역기간(개월)"]))
+                        if "원본_입찰일" not in year_df.columns:
+                            year_df["원본_입찰일"] = pd.NaT
+                        year_df.at[idx, "원본_입찰일"] = original_date
+                
+                # 입찰게시와 예측입찰게시 분리
+                if "예측_입찰일" not in year_df.columns:
+                    year_df["예측_입찰일"] = pd.NaT
+                year_df.at[idx, "예측_입찰일"] = row["예상_입찰일"]  # 현재 예상_입찰일은 예측된 날짜
+                
+                # 원본 입찰일이 있으면 예상_입찰일을 원본_입찰일로 교체
+                if "원본_입찰일" in year_df.columns and pd.notna(year_df.at[idx, "원본_입찰일"]):
+                    year_df.at[idx, "예상_입찰일"] = year_df.at[idx, "원본_입찰일"]
         
         # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
         column_mapping = {
             "공고명": "공고명",
             "실수요기관": "실수요기관",
             "예상_입찰일": "입찰게시",
+            "예측_입찰일": "(예측)입찰게시",
             "물동량 평균": "평균M/M",
             "용역기간(개월)": "용역기간(개월)",
             "계약 기간 내": "계약금액(원)",
@@ -616,28 +629,24 @@ def register_full_table_callbacks(app, df):
             "입찰금액_1순위": "입찰금액(원)"
         }
         
-        # 모든 데이터에 원래입찰게시 컬럼 추가 (중요 변경)
-        if "원본_입찰일" in year_df.columns:
-            column_mapping["원본_입찰일"] = "원래입찰게시"
-        
         # 필요한 컬럼만 선택하고 이름 변경
         available_columns = [col for col in column_mapping.keys() if col in year_df.columns]
         table_df = year_df[available_columns].copy()
-        table_df.columns = [column_mapping[col] for col in available_columns]
+        table_df.columns = [column_mapping[col] for col in available_columns if col in column_mapping]
         
         # 입찰업체가 "예측"인 경우 빈 값으로 변경
         if "1순위 입찰업체" in table_df.columns:
             table_df["1순위 입찰업체"] = table_df["1순위 입찰업체"].apply(lambda x: "-" if x == "예측" else x)
         
         # 날짜 형식 변환
-        date_columns = [col for col in ["입찰게시", "원래입찰게시"] if col in table_df.columns]
+        date_columns = [col for col in ["입찰게시", "(예측)입찰게시"] if col in table_df.columns]
         for col in date_columns:
-            table_df[col] = pd.to_datetime(table_df[col]).dt.strftime('%Y-%m')
+            table_df[col] = pd.to_datetime(table_df[col], errors='coerce').dt.strftime('%Y-%m')
         
         # 테이블 컬럼 설정
         columns = []
         for col_id in table_df.columns:
-            if col_id in ["입찰게시", "원래입찰게시"]:
+            if col_id in ["입찰게시", "(예측)입찰게시"]:
                 columns.append({"name": col_id, "id": col_id, "type": "text"})
             elif col_id in ["공고명", "실수요기관", "1순위 입찰업체"]:
                 columns.append({"name": col_id, "id": col_id, "type": "text", "filter_options": {"case": "insensitive"}})
