@@ -439,8 +439,8 @@ def register_next_bid_navigation_callbacks(app, df):
         
         return current_page
     
-    def register_full_table_callbacks(app, df):
-        @app.callback(
+def register_full_table_callbacks(app, df):
+    @app.callback(
             Output("full-table-container", "children"),
             Input("selected-year", "data")
         )
