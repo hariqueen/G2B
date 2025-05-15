@@ -473,25 +473,31 @@ def register_full_table_callbacks(app, df):
             if "입찰일" in table_df.columns:
                 table_df["입찰일"] = table_df["입찰일"].dt.strftime('%Y-%m-%d')
             
-            # 테이블 생성
+            # 테이블 생성 (페이지네이션 제거, 높이 조정)
             table = dash_table.DataTable(
                 id='full-data-table',
                 columns=[{"name": col, "id": col} for col in table_df.columns],
                 data=table_df.to_dict('records'),
                 style_table={
-                    'overflowX': 'auto',
-                    'maxHeight': '500px',
-                    'overflowY': 'auto'
+                    'overflowX': 'auto',     # 가로 스크롤
+                    'maxHeight': '600px',     # 테이블 최대 높이 증가
+                    'overflowY': 'auto',      # 세로 스크롤
                 },
                 style_cell={
                     'textAlign': 'left',
                     'padding': '8px',
                     'minWidth': '100px',
+                    'maxWidth': '300px',      # 셀 최대 너비 제한
+                    'overflow': 'hidden',
+                    'textOverflow': 'ellipsis'  # 내용이 너무 길면 ...로 표시
                 },
                 style_header={
                     'backgroundColor': 'rgb(230, 230, 230)',
                     'fontWeight': 'bold',
-                    'border': '1px solid #ddd'
+                    'border': '1px solid #ddd',
+                    'position': 'sticky',      # 헤더 고정
+                    'top': 0,                  # 헤더 위치
+                    'zIndex': 10              # 다른 요소 위에 표시
                 },
                 style_data={
                     'whiteSpace': 'normal',
@@ -508,14 +514,21 @@ def register_full_table_callbacks(app, df):
                 filter_action="native",       # 필터링 기능 추가
                 sort_action="native",         # 정렬 기능 추가
                 sort_mode="multi",            # 다중 컬럼 정렬 가능
-                page_size=15,                 # 한 페이지에 표시할 행 수
+                page_action='none',           # 페이지네이션 비활성화
                 export_format="csv",          # CSV 내보내기 기능
                 export_headers="display",     # 내보낼 때 표시 이름 사용
+                tooltip_data=[
+                    {
+                        column: {'value': str(value), 'type': 'markdown'}
+                        for column, value in row.items()
+                    } for row in table_df.to_dict('records')
+                ],
+                tooltip_duration=None         # 툴팁 지속 시간 (마우스가 벗어날 때까지)
             )
             
             return html.Div([
                 html.Div([
                     html.P(f"{selected_year}년 공고 총 {len(table_df)}건", className="table-summary-text"),
                 ], className="table-summary-container"),
-                table
+                html.Div(table, className="table-container")  # 컨테이너로 감싸기
             ])

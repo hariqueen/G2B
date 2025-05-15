@@ -288,56 +288,6 @@ body {
     font-size: 0.9rem;
 }
 
-/* 전체 테이블 */
-.full-table-details {
-    margin-bottom: 30px;
-}
-
-.table-summary {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 10px 15px;
-    cursor: pointer;
-    font-weight: 500;
-    margin-bottom: 15px;
-}
-
-.full-table {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    padding: 15px;
-}
-
-/* 스크롤바 스타일링 */
-.org-list::-webkit-scrollbar, 
-.month-bids-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.org-list::-webkit-scrollbar-track, 
-.month-bids-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 10px;
-}
-
-.org-list::-webkit-scrollbar-thumb, 
-.month-bids-list::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 10px;
-}
-
-.org-list::-webkit-scrollbar-thumb:hover, 
-.month-bids-list::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* 월별 공고 섹션 컨테이너 */
-.monthly-section-container {
-    margin-top: 30px; /* 차트와의 간격 증가 */
-}
-
 /* 전체 테이블 섹션 */
 .full-table-section {
     margin-top: 30px;
@@ -351,6 +301,16 @@ body {
     padding: 15px;
 }
 
+/* 테이블 컨테이너 */
+.table-container {
+    width: 100%;
+    max-height: 650px;
+    overflow: auto;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+/* 테이블 요약 정보 */
 .table-summary-container {
     margin-bottom: 15px;
 }
@@ -368,7 +328,12 @@ body {
     color: #6c757d;
 }
 
-/* 테이블 내 스타일링 */
+/* 테이블 내부 스타일링 */
+#full-data-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
 #full-data-table .dash-cell-value {
     font-size: 0.95rem;
 }
@@ -376,9 +341,41 @@ body {
 #full-data-table .dash-header {
     font-weight: 600;
     color: #343a40;
+    position: sticky;
+    top: 0;
+    background-color: rgb(230, 230, 230);
+    z-index: 10;
 }
 
-#full-data-table {
-    border-collapse: collapse;
-    width: 100%;
+/* 월별 공고 섹션 컨테이너 */
+.monthly-section-container {
+    margin-top: 30px;
+}
+
+/* 모든 스크롤바 통합 스타일링 */
+.table-container::-webkit-scrollbar,
+.org-list::-webkit-scrollbar,
+.month-bids-list::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track,
+.org-list::-webkit-scrollbar-track,
+.month-bids-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.org-list::-webkit-scrollbar-thumb,
+.month-bids-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.org-list::-webkit-scrollbar-thumb:hover,
+.month-bids-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }
