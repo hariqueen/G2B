@@ -142,21 +142,22 @@ def register_info_callbacks(app, df):
     def update_next_bids(selected_year, current_page):
         today = datetime.today()
         
+        # 다음 달의 1일 계산 (중요: 현재 월이 아닌 다음 월부터 표시)
+        next_month_start = datetime(today.year + ((today.month + 1) > 12), 
+                                ((today.month + 1) % 12) or 12, 1)
+        
         # 원본 데이터의 최대 연도 확인
         max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
         
         # 선택한 연도가 원본 데이터 최대 연도보다 큰 경우 (예측 데이터)
         is_future_data = selected_year > max_original_year
         
-        # 현재 월 이후의
-        next_month = datetime(today.year + (today.month == 12), (today.month % 12) + 1, 1)
-        
         if is_future_data:
             # 미래 연도인 경우 해당 연도의 예측 데이터만 표시
             upcoming_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측"))].copy()
         else:
-            # 현재 연도이면 현재 월 이후 데이터만 표시
-            upcoming_df = df[df["예상_입찰일"] >= next_month].copy()
+            # 현재 연도이면 다음 달부터 데이터만 표시 (변경된 부분)
+            upcoming_df = df[df["예상_입찰일"] >= next_month_start].copy()
         
         # 데이터가 없는 경우
         if upcoming_df.empty:
