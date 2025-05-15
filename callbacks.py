@@ -145,12 +145,16 @@ def register_info_callbacks(app, df):
 
             # 각 공고에 대해 예측 입찰일 계산
             for i, (_, row) in enumerate(공고_리스트.iterrows()):
-                # 예측 입찰일 계산 부분 추가
-                if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                    예측일 = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
-                    공고_리스트.at[i, "예측_입찰일"] = 예측일
+                # 예측 입찰일 계산 - "예측_입찰일" 컬럼이 있으면 그 값을 사용, 없으면 계산
+                if "예측_입찰일" in 기관공고_df.columns and pd.notna(row.get("예측_입찰일")):
+                    공고_리스트.at[i, "예측_입찰일"] = row["예측_입찰일"]
                 else:
-                    공고_리스트.at[i, "예측_입찰일"] = pd.NaT
+                    # 용역기간 기반 예측 계산
+                    if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                        예측일 = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+                        공고_리스트.at[i, "예측_입찰일"] = 예측일
+                    else:
+                        공고_리스트.at[i, "예측_입찰일"] = pd.NaT
 
             org_details = html.Details([
                 html.Summary(name, className="org-name"),
@@ -300,11 +304,16 @@ def register_month_navigation_callbacks(app, df):
                     if highlight:
                         summary_class += " highlighted"
                     
-                    # 예측 입찰일 계산
-                    predicted_date = ""
-                    if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                        predicted_date = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
-                        predicted_date = predicted_date.strftime('%Y-%m') if not pd.isna(predicted_date) else "-"
+                    # 예측 입찰일 계산 - "예측_입찰일" 컬럼이 있으면 그 값을 사용, 없으면 계산
+                    if "예측_입찰일" in row and pd.notna(row["예측_입찰일"]):
+                        predicted_date = row["예측_입찰일"].strftime('%Y-%m') if not pd.isna(row["예측_입찰일"]) else "-"
+                    else:
+                        # 용역기간 기반 예측 계산
+                        if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                            predicted_date = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+                            predicted_date = predicted_date.strftime('%Y-%m') if not pd.isna(predicted_date) else "-"
+                        else:
+                            predicted_date = "-"
                     
                     bid_details = html.Details([
                         html.Summary(f"{emoji} {row['공고명']}", className=summary_class),
@@ -321,12 +330,12 @@ def register_month_navigation_callbacks(app, df):
                     ])
                     month_bids.append(bid_details)
 
-            section = html.Div([
-                html.Div(id=anchor_id, className="anchor-point"),
-                html.H3(f"{emphasis}{m}", className="month-title"),
-                html.Div(month_bids, className="month-bids-list")
-            ], className="month-section", style=section_style)
-            month_cells.append(html.Div(section, className="month-cell"))
+                section = html.Div([
+                    html.Div(id=anchor_id, className="anchor-point"),
+                    html.H3(f"{emphasis}{m}", className="month-title"),
+                    html.Div(month_bids, className="month-bids-list")
+                ], className="month-section", style=section_style)
+                month_cells.append(html.Div(section, className="month-cell"))
 
         return month_cells, range_display, prev_button_disabled, next_button_disabled
     
@@ -515,19 +524,22 @@ def register_full_table_callbacks(app, df):
         # 테이블에 표시할 데이터 정렬
         year_df = year_df.sort_values(by="예상_입찰일")
         
-        def calculate_predicted_date(row):
-            if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                return row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
-            return pd.NaT
-            
-        year_df["예측_입찰일시"] = year_df.apply(calculate_predicted_date, axis=1)
+        # 필요한 컬럼 선택 및 이름 변경
+        # 예측_입찰일이 없으면 용역기간을 기반으로 계산
+        if "예측_입찰일" not in year_df.columns:
+            def calculate_predicted_date(row):
+                if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                    return row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+                return pd.NaT
+                
+            year_df["예측_입찰일"] = year_df.apply(calculate_predicted_date, axis=1)
         
         # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
         column_mapping = {
             "공고명": "공고명",
             "실수요기관": "실수요기관",
             "예상_입찰일": "입찰게시",  # 이름 변경
-            "예측_입찰일시": "(예측)입찰게시",  # 새 컬럼 추가
+            "예측_입찰일": "(예측)입찰게시",  # 예측 입찰일 컬럼
             "물동량 평균": "평균M/M",
             "용역기간(개월)": "용역기간(개월)",
             "계약 기간 내": "계약금액(원)",
