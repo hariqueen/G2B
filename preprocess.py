@@ -75,9 +75,11 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
 def generate_prediction_data(df, prediction_years=30):
     """
     용역기간이 끝나는 시점에 같은 공고가 다시 올라온다고 가정하여 예측 데이터 생성
+    미래 연도에만 예측 데이터 표시 (현재 또는 과거 연도에는 예측 데이터 제외)
     """
     predictions = []
     today = datetime.today()
+    current_year = today.year
     max_year = today.year + prediction_years
     
     # 용역기간이 있는 공고만 대상으로 함
@@ -102,22 +104,24 @@ def generate_prediction_data(df, prediction_years=30):
             if next_date.year > max_year:
                 break
                 
-            # 새로운 예측 데이터 생성
-            new_row = row.copy()
-            new_row["공고_시작일"] = next_date
-            new_row["예상_입찰일"] = next_date
-            new_row["예상_연도"] = next_date.year
-            new_row["예상_입찰월"] = next_date.month
-            
-            # 공고명에 예측 표시 추가
-            new_row["공고명"] = f"{row['공고명']} (예측 {cycle}차)"
-            
-            # 입찰 결과 데이터 초기화 (예측이므로 결과는 없음)
-            new_row["입찰결과_1순위"] = "예측"
-            new_row["입찰금액_1순위"] = 0
-            
-            # 예측 데이터 추가
-            predictions.append(new_row)
+            # 중요: 미래 연도에만 예측 데이터 추가 (현재 연도보다 큰 연도만)
+            if next_date.year > current_year:
+                # 새로운 예측 데이터 생성
+                new_row = row.copy()
+                new_row["공고_시작일"] = next_date
+                new_row["예상_입찰일"] = next_date
+                new_row["예상_연도"] = next_date.year
+                new_row["예상_입찰월"] = next_date.month
+                
+                # 공고명에 예측 표시 추가
+                new_row["공고명"] = f"{row['공고명']} (예측 {cycle}차)"
+                
+                # 입찰 결과 데이터 초기화 (예측이므로 결과는 없음)
+                new_row["입찰결과_1순위"] = "예측"
+                new_row["입찰금액_1순위"] = 0
+                
+                # 예측 데이터 추가
+                predictions.append(new_row)
             
             # 다음 사이클 준비
             current_date = next_date
