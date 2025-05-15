@@ -249,7 +249,7 @@ def register_month_navigation_callbacks(app, df):
                         html.Summary(f"{emoji} {row['공고명']}", className=f"bid-summary {'highlighted' if highlight else ''}"),
                         html.Div([
                             html.P(f"실수요기관: {row['실수요기관'] if pd.notna(row['실수요기관']) else '-'}", className="bid-detail"),
-                            html.P(f"입찰일: {row['예상_입찰일'].strftime('%Y-%m-%d') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
+                            html.P(f"입찰일: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
                             html.P(f"M/M: {row['물동량 평균'] if pd.notna(row['물동량 평균']) else '-'}", className="bid-detail"),
                             html.P(f"용역기간: {row['용역기간(개월)'] if pd.notna(row['용역기간(개월)']) else '-'}{'개월' if pd.notna(row['용역기간(개월)']) else ''}", className="bid-detail"),
                             html.P(f"계약금액: {row['계약 기간 내'] if pd.notna(row['계약 기간 내']) else '-'}{'원' if pd.notna(row['계약 기간 내']) else ''}", className="bid-detail"),
@@ -471,7 +471,7 @@ def register_full_table_callbacks(app, df):
             
             # 날짜 형식 변환
             if "입찰일" in table_df.columns:
-                table_df["입찰일"] = table_df["입찰일"].dt.strftime('%Y-%m-%d')
+                table_df["입찰일"] = table_df["입찰일"].dt.strftime('%Y-%m')
             
             # 숫자 컬럼을 문자열로 변환하지 않고 유지
             # 필터링과 정렬이 제대로 작동하도록 데이터 타입 유지
