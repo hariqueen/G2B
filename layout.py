@@ -63,11 +63,11 @@ def create_layout(initial_state):
             ], className="monthly-bids-wrapper"),
         ], className="monthly-section-container"),
         
-        # 전체 테이블 (확장/축소 가능)
-        html.Details([
-            html.Summary("📋 전체 공고 보기", className="table-summary"),
+        # 전체 테이블 (토글 제거하고 항상 표시)
+        html.Div([
+            html.H3("📋 전체 공고 보기", className="section-title"),
             html.Div(id="full-table-container", className="full-table"),
-        ], className="full-table-details"),
+        ], className="full-table-section"),
         
         # 상태 저장용 hidden 요소들
         dcc.Store(id="selected-year", data=initial_state["year"]),

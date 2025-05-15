@@ -10,6 +10,7 @@ def register_callbacks(app, df):
     register_bid_selection_callbacks(app, df)
     register_utility_callbacks(app, df)
     register_next_bid_navigation_callbacks(app, df)
+    register_full_table_callbacks(app, df)
 
 def register_year_callbacks(app, df):
     @app.callback(
@@ -437,3 +438,84 @@ def register_next_bid_navigation_callbacks(app, df):
             return current_page + 1
         
         return current_page
+    
+    def register_full_table_callbacks(app, df):
+        @app.callback(
+            Output("full-table-container", "children"),
+            Input("selected-year", "data")
+        )
+        def update_full_table(selected_year):
+            year_df = df[df["예상_연도"] == selected_year].copy()
+            
+            if year_df.empty:
+                return html.Div("선택한 연도에 해당하는 공고가 없습니다.", className="no-data-message")
+            
+            # 테이블에 표시할 데이터 정렬
+            year_df = year_df.sort_values(by="예상_입찰일")
+            
+            # 컬럼 이름 매핑 (원래 컬럼명 -> 보여줄 컬럼명)
+            column_mapping = {
+                "공고명": "공고명",
+                "실수요기관": "실수요기관",
+                "예상_입찰일": "입찰일",
+                "물동량 평균": "평균M/M",
+                "용역기간(개월)": "용역기간(개월)",
+                "계약 기간 내": "계약금액(원)",
+                "입찰결과_1순위": "1순위 입찰업체",
+                "입찰금액_1순위": "입찰금액(원)"
+            }
+            
+            # 필요한 컬럼만 선택하고 이름 변경
+            table_df = year_df[list(column_mapping.keys())].copy()
+            table_df.columns = [column_mapping[col] for col in table_df.columns]
+            
+            # 날짜 형식 변환
+            if "입찰일" in table_df.columns:
+                table_df["입찰일"] = table_df["입찰일"].dt.strftime('%Y-%m-%d')
+            
+            # 테이블 생성
+            table = dash_table.DataTable(
+                id='full-data-table',
+                columns=[{"name": col, "id": col} for col in table_df.columns],
+                data=table_df.to_dict('records'),
+                style_table={
+                    'overflowX': 'auto',
+                    'maxHeight': '500px',
+                    'overflowY': 'auto'
+                },
+                style_cell={
+                    'textAlign': 'left',
+                    'padding': '8px',
+                    'minWidth': '100px',
+                },
+                style_header={
+                    'backgroundColor': 'rgb(230, 230, 230)',
+                    'fontWeight': 'bold',
+                    'border': '1px solid #ddd'
+                },
+                style_data={
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                    'lineHeight': '15px',
+                    'border': '1px solid #ddd'
+                },
+                style_data_conditional=[
+                    {
+                        'if': {'row_index': 'odd'},
+                        'backgroundColor': 'rgb(248, 248, 248)'
+                    }
+                ],
+                filter_action="native",       # 필터링 기능 추가
+                sort_action="native",         # 정렬 기능 추가
+                sort_mode="multi",            # 다중 컬럼 정렬 가능
+                page_size=15,                 # 한 페이지에 표시할 행 수
+                export_format="csv",          # CSV 내보내기 기능
+                export_headers="display",     # 내보낼 때 표시 이름 사용
+            )
+            
+            return html.Div([
+                html.Div([
+                    html.P(f"{selected_year}년 공고 총 {len(table_df)}건", className="table-summary-text"),
+                ], className="table-summary-container"),
+                table
+            ])
