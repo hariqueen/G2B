@@ -142,9 +142,22 @@ def register_info_callbacks(app, df):
     def update_next_bids(selected_year, current_page):
         today = datetime.today()
         
-        # 다음 달의 1일 계산 (중요: 현재 월이 아닌 다음 월부터 표시)
-        next_month_start = datetime(today.year + ((today.month + 1) > 12), 
-                                ((today.month + 1) % 12) or 12, 1)
+        # 다음 달의 1일 계산
+        current_month = today.month
+        current_year = today.year
+        
+        if current_month == 12:
+            next_month = 1
+            next_year = current_year + 1
+        else:
+            next_month = current_month + 1
+            next_year = current_year
+        
+        next_month_start = datetime(next_year, next_month, 1)
+        next_month_str = f"{next_year}-{next_month:02d}"  # 형식: "YYYY-MM"
+        
+        print(f"다음 달 시작일: {next_month_start}")
+        print(f"다음 달 문자열: {next_month_str}")
         
         # 원본 데이터의 최대 연도 확인
         max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
@@ -153,27 +166,46 @@ def register_info_callbacks(app, df):
         is_future_data = selected_year > max_original_year
         
         if is_future_data:
-            # 미래 연도인 경우 해당 연도의 예측 데이터만 표시
+            # 미래 연도인 경우 해당 연도의 예측 데이터만 표시 (연도별)
             upcoming_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측"))].copy()
         else:
-            # 현재 연도이면 다음 달부터 데이터만 표시 (변경된 부분)
+            # 현재/이전 연도인 경우 다음 달부터 데이터만 표시
             upcoming_df = df[df["예상_입찰일"] >= next_month_start].copy()
+        
+        print(f"다음 예정 입찰 데이터 수: {len(upcoming_df)}")
         
         # 데이터가 없는 경우
         if upcoming_df.empty:
             return "다음 입찰 예상월: 없음", "🏢 실수요기관 수: 0곳", []
         
+        # 데이터 확인
+        print(f"첫 번째 입찰 일자: {upcoming_df['예상_입찰일'].min()}")
+        print(f"마지막 입찰 일자: {upcoming_df['예상_입찰일'].max()}")
+        
         # NaT 값 처리 추가
         upcoming_df["예상_년월"] = upcoming_df["예상_입찰일"].dt.strftime("%Y-%m").fillna("")
         
-        월순서 = sorted([m for m in upcoming_df["예상_년월"].unique() if m]) # 빈 문자열 제외
+        월순서 = sorted([m for m in upcoming_df["예상_년월"].unique() if m])
+        print(f"월 순서: {월순서}")
         
-        # 현재 페이지에 해당하는 월 선택
-        if 월순서 and current_page < len(월순서):
-            current_month = 월순서[current_page]
-            target_months = [current_month]
+        # 중요 변경: 다음 달 또는 그 이후에 가장 가까운 월 찾기
+        if current_page == 0:  # 초기 페이지일 때만 자동으로 다음 달 선택
+            # next_month_str 이후의 가장 가까운 월 찾기
+            future_months = [m for m in 월순서 if m >= next_month_str]
+            if future_months:
+                current_month = future_months[0]  # 다음 달 이후의 첫 번째 달
+                # current_page 값도 업데이트
+                current_page = 월순서.index(current_month)
+            else:
+                # 다음 달 이후 데이터가 없으면 가장 최근 월 선택
+                current_month = 월순서[-1] if 월순서 else None
+                current_page = len(월순서) - 1 if 월순서 else 0
         else:
-            target_months = []
+            # 사용자가 페이지를 변경한 경우 해당 페이지 사용
+            current_month = 월순서[current_page] if 월순서 and current_page < len(월순서) else None
+        
+        target_months = [current_month] if current_month else []
+        print(f"선택된 타겟 월: {target_months}, 페이지: {current_page}")
         
         # 타겟 월에 해당하는 데이터가 없는 경우
         if not target_months:
@@ -236,6 +268,9 @@ def register_info_callbacks(app, df):
         
         # 월 표시 (예측 정보 추가)
         month_display = f"다음 입찰 예상월: {target_월} (총 {total_count}건)" + (" (예측)" if is_future_data else "")
+        
+        # 현재 페이지도 업데이트
+        dcc.Store(id="current-page", data=current_page)
                 
         return month_display, f"🏢 실수요기관 수: {기관_총수}곳", org_list
 
