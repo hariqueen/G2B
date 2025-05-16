@@ -650,7 +650,7 @@ def register_full_table_callbacks(app, df):
     Input("selected-year", "data")
 )
     def update_full_table(selected_year):
-    # 원본 데이터의 최대 연도 확인
+        # 원본 데이터의 최대 연도 확인
         max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
         print(f"원본 데이터 최대 연도: {max_original_year}, 선택 연도: {selected_year}")
         
@@ -733,13 +733,34 @@ def register_full_table_callbacks(app, df):
         columns = []
         for col_id in table_df.columns:
             if col_id in ["입찰게시", "(예측)입찰게시"]:
-                columns.append({"name": col_id, "id": col_id, "type": "text"})
+                # 날짜 - 좌측 정렬 (기본)
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id, 
+                    "type": "text"
+                })
             elif col_id in ["공고명", "실수요기관", "1순위 입찰업체"]:
-                columns.append({"name": col_id, "id": col_id, "type": "text", "filter_options": {"case": "insensitive"}})
-            elif col_id in ["계약금액(원)", "입찰금액(원)"]:
-                columns.append({"name": col_id, "id": col_id, "type": "numeric", "format": {"specifier": ","}})
+                # 텍스트 - 가운데 정렬
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id, 
+                    "type": "text", 
+                    "filter_options": {"case": "insensitive"}
+                })
+            elif col_id in ["계약금액(원)", "입찰금액(원)", "용역기간(개월)", "평균M/M"]:
+                # 숫자 - 우측 정렬
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id, 
+                    "type": "numeric", 
+                    "format": {"specifier": ","} if col_id in ["계약금액(원)", "입찰금액(원)"] else {}
+                })
             else:
-                columns.append({"name": col_id, "id": col_id, "type": "numeric"})
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id, 
+                    "type": "numeric"
+                })
 
         table = dash_table.DataTable(
             id='full-data-table',
@@ -750,21 +771,42 @@ def register_full_table_callbacks(app, df):
                 'maxHeight': '600px',
                 'overflowY': 'auto'
             },
+            # 기본 셀 스타일 설정
             style_cell={
-                'textAlign': 'left',
                 'padding': '8px',
                 'minWidth': '100px',
                 'maxWidth': '300px',
                 'overflow': 'hidden',
                 'textOverflow': 'ellipsis'
             },
+            # 데이터 유형별 정렬 설정
+            style_cell_conditional=[
+                # 텍스트 컬럼 - 가운데 정렬
+                {
+                    'if': {'column_id': col},
+                    'textAlign': 'center'
+                } for col in ["공고명", "실수요기관", "1순위 입찰업체"]
+            ] + [
+                # 숫자 컬럼 - 우측 정렬
+                {
+                    'if': {'column_id': col},
+                    'textAlign': 'right'
+                } for col in ["계약금액(원)", "입찰금액(원)", "용역기간(개월)", "평균M/M"]
+            ] + [
+                # 날짜 컬럼 - 좌측 정렬
+                {
+                    'if': {'column_id': col},
+                    'textAlign': 'left'
+                } for col in ["입찰게시", "(예측)입찰게시"]
+            ],
             style_header={
                 'backgroundColor': 'rgb(230, 230, 230)',
                 'fontWeight': 'bold',
                 'border': '1px solid #ddd',
                 'position': 'sticky',
                 'top': 0,
-                'zIndex': 10
+                'zIndex': 10,
+                'textAlign': 'center'  # 헤더는 모두 가운데 정렬
             },
             style_data={
                 'whiteSpace': 'normal',
