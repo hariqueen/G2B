@@ -121,8 +121,9 @@ def generate_prediction_data(df, prediction_years=30):
         if 용역기간 <= 0:
             용역기간 = 12
         
-        # 계산된 예측 입찰일
-        predicted_date = current_date + pd.DateOffset(months=int(용역기간))
+        # 용역기간에서 1개월 차감 (최소 1개월 보장)
+        adjusted_period = max(1, int(용역기간) - 1)
+        predicted_date = current_date + pd.DateOffset(months=adjusted_period)
         
         # 최대 예측 년도를 넘어가면 중단
         if predicted_date.year > max_year:

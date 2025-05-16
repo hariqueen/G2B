@@ -79,4 +79,7 @@ def create_layout(initial_state):
         html.Div(id="scroll-target-display", style={"display": "none"}),
         html.Div(id="scroll-trigger-result", style={"display": "none"}),
         html.Div(id="bid-auto-open-result", style={"display": "none"}),
+        
+        # 추가: 연도 변경 시 details를 닫기 위한 요소
+        html.Div(id="year-change-close-result", style={"display": "none"}),
     ])

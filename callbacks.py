@@ -11,12 +11,14 @@ def register_callbacks(app, df):
     register_utility_callbacks(app, df)
     register_next_bid_navigation_callbacks(app, df)
     register_full_table_callbacks(app, df)
-
+    
 def register_year_callbacks(app, df):
     @app.callback(
         [Output("selected-year", "data"),
          Output("year-display", "children"),
-         Output("current-month-view", "data")],
+         Output("current-month-view", "data"),
+         Output("selected-bid", "data"), 
+         Output("selected-month", "data")],  
         [Input("prev-year-btn", "n_clicks"),
          Input("next-year-btn", "n_clicks")],
         [State("selected-year", "data")],
@@ -35,7 +37,7 @@ def register_year_callbacks(app, df):
         
         if not ctx.triggered:
             # 앱 초기 로드 시 - 현재 월이 속한 그룹 표시
-            return current_year, f"{current_year}년", default_page
+            return current_year, f"{current_year}년", default_page, None, None
 
         button_id = ctx.triggered[0]["prop_id"].split(".")[0]
         if button_id == "prev-year-btn" and prev_clicks:
@@ -48,7 +50,8 @@ def register_year_callbacks(app, df):
         # 현재 연도일 경우 현재월 포함 그룹, 아니면 첫 그룹(1~4월)
         month_view = default_page if new_year == today.year else 0
 
-        return new_year, f"{new_year}년", month_view
+        # 연도가 변경되면 선택된 bid와 month를 None으로 설정하여 초기화
+        return new_year, f"{new_year}년", month_view, None, None
 
 
 def register_info_callbacks(app, df):
@@ -399,9 +402,11 @@ def register_month_navigation_callbacks(app, df):
                     if "예측_입찰일" in row and pd.notna(row["예측_입찰일"]):
                         predicted_date = row["예측_입찰일"].strftime('%Y-%m') if not pd.isna(row["예측_입찰일"]) else "-"
                     else:
-                        # 용역기간 기반 예측 계산
+                        # 용역기간 기반 예측 계산 (용역기간-1개월 적용)
                         if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
-                            predicted_date = row["예상_입찰일"] + pd.DateOffset(months=int(row["용역기간(개월)"]))
+                            # 용역기간에서 1개월 차감
+                            adjusted_period = max(1, int(row["용역기간(개월)"]) - 1)  # 최소 1개월 보장
+                            predicted_date = row["예상_입찰일"] + pd.DateOffset(months=adjusted_period)
                             predicted_date = predicted_date.strftime('%Y-%m') if not pd.isna(predicted_date) else "-"
                         else:
                             predicted_date = "-"
@@ -433,14 +438,14 @@ def register_month_navigation_callbacks(app, df):
 def register_bid_selection_callbacks(app, df):
     @app.callback(
         [Output("selected-month", "data", allow_duplicate=True),
-         Output("selected-bid", "data"),
-         Output("scroll-target-display", "children"),
-         Output("current-month-view", "data", allow_duplicate=True),
-         Output("selected-year", "data", allow_duplicate=True)],
+        Output("selected-bid", "data", allow_duplicate=True),  # 여기에 allow_duplicate=True 추가
+        Output("scroll-target-display", "children"),
+        Output("current-month-view", "data", allow_duplicate=True),
+        Output("selected-year", "data", allow_duplicate=True)],
         [Input({"type": "bid-btn", "index": ALL}, "n_clicks")],
         [State({"type": "bid-btn", "index": ALL}, "data-month"),
-         State({"type": "bid-btn", "index": ALL}, "data-bid"),
-         State("selected-year", "data")],
+        State({"type": "bid-btn", "index": ALL}, "data-bid"),
+        State("selected-year", "data")],
         prevent_initial_call=True
     )
     def update_selection(n_clicks, months, bids, selected_year):
@@ -468,7 +473,7 @@ def register_bid_selection_callbacks(app, df):
 
         return no_update, no_update, no_update, no_update, no_update
 
-    # 자동 펼침 기능을 위한 새로운 콜백 추가 (하나만 열리도록 수정)
+    # 자동 펼침 기능을 위한 콜백 - 원래 코드 유지
     app.clientside_callback(
         """
         function(selectedBid) {
@@ -533,6 +538,7 @@ def register_bid_selection_callbacks(app, df):
     )
 
 def register_utility_callbacks(app, df):
+    # 기존 스크롤 콜백 유지
     app.clientside_callback(
         """
         function(targetId, selectedYear) {
@@ -569,6 +575,43 @@ def register_utility_callbacks(app, df):
         Output("scroll-trigger-result", "children"),
         [Input("scroll-target-display", "children"),
          Input("selected-year", "data")]  # selected-year도 입력으로 추가
+    )
+    
+    # 연도 변경 시 details 닫는 새로운 콜백 추가
+    app.clientside_callback(
+        """
+        function(selectedYear) {
+            // 연도 변경 시 모든 details 닫기
+            window.lastYear = window.lastYear || selectedYear;
+            
+            // 연도가 변경된 경우에만 실행
+            if (selectedYear !== window.lastYear) {
+                setTimeout(function() {
+                    // 월별 공고 리스트의 모든 details 닫기
+                    const allBidDetails = document.querySelectorAll('.month-bids-list details');
+                    for (let i = 0; i < allBidDetails.length; i++) {
+                        if (allBidDetails[i].hasAttribute('open')) {
+                            allBidDetails[i].removeAttribute('open');
+                        }
+                    }
+                    
+                    // 기관 details 닫기
+                    const allOrgDetails = document.querySelectorAll('.org-details');
+                    for (let i = 0; i < allOrgDetails.length; i++) {
+                        if (allOrgDetails[i].hasAttribute('open')) {
+                            allOrgDetails[i].removeAttribute('open');
+                        }
+                    }
+                }, 100);
+            }
+            
+            // 현재 연도 저장
+            window.lastYear = selectedYear;
+            return selectedYear;
+        }
+        """,
+        Output("year-change-close-result", "children"),
+        Input("selected-year", "data")
     )
 
 def register_next_bid_navigation_callbacks(app, df):
@@ -646,7 +689,14 @@ def register_full_table_callbacks(app, df):
                 # 입찰게시와 예측입찰게시 분리
                 if "예측_입찰일" not in year_df.columns:
                     year_df["예측_입찰일"] = pd.NaT
-                year_df.at[idx, "예측_입찰일"] = row["예상_입찰일"]  # 현재 예상_입찰일은 예측된 날짜
+                    
+                # 용역기간 기반 예측 계산 (용역기간-1개월 적용)
+                if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
+                    # 용역기간에서 1개월 차감
+                    adjusted_period = max(1, int(row["용역기간(개월)"]) - 1)  # 최소 1개월 보장
+                    year_df.at[idx, "예측_입찰일"] = row["원본_입찰일"] + pd.DateOffset(months=adjusted_period)
+                else:
+                    year_df.at[idx, "예측_입찰일"] = row["예상_입찰일"]  # 원본 예측일 사용
                 
                 # 원본 입찰일이 있으면 예상_입찰일을 원본_입찰일로 교체
                 if "원본_입찰일" in year_df.columns and pd.notna(year_df.at[idx, "원본_입찰일"]):
@@ -754,7 +804,10 @@ def register_full_table_callbacks(app, df):
         total_count = len(table_df)
         
         # 제목에 예측 표시 추가 (미래 데이터인 경우)
-        title_text = f"{selected_year}년 공고 총 {total_count}건" + (" (예측)" if is_future_data else "")
+        if is_future_data:
+            title_text = f"{selected_year}년 공고 총 {total_count}건 (예측일은 용역기간-1개월로 산정)"
+        else:
+            title_text = f"{selected_year}년 공고 총 {total_count}건"
         
         return html.Div([
             html.Div([
