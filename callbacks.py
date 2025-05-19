@@ -2,6 +2,7 @@ from dash import Input, Output, State, callback_context, html, dash_table, ALL, 
 import plotly.express as px
 import pandas as pd
 from datetime import datetime
+import plotly.graph_objects as go 
 
 def register_callbacks(app, df):
     register_year_callbacks(app, df)
@@ -74,67 +75,150 @@ def register_info_callbacks(app, df):
             # 모든 월 (1-12) 생성
             all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
             all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
-            all_months["공고명"] = 0
+            all_months["공고수"] = 0
+            all_months["물동량평균"] = 0
             
             # 빈 차트 생성
-            fig = px.bar(
-                all_months,
-                x="월",
-                y="공고명",
-                title=f"{selected_year}년 월별 공고 수",
-                labels={"공고명": "공고 수", "월": ""},
-                color_discrete_sequence=["#1f77b4"]
-            )
+            fig = go.Figure()
             
+            # 막대 차트 추가 (물동량 평균) - 0으로 표시
+            fig.add_trace(go.Bar(
+                x=all_months["월"],
+                y=all_months["물동량평균"],
+                name="평균 물동량(M/M)",
+                marker_color="#1f77b4",
+                hovertemplate="평균 물동량: %{y:,.0f} 명<extra></extra>"
+            ))
+            
+            # 선 차트 추가 (공고 수) - 0으로 표시
+            fig.add_trace(go.Scatter(
+                x=all_months["월"],
+                y=all_months["공고수"],
+                name="공고 수",
+                mode="lines+markers",
+                marker_color="#ff7f0e",
+                line=dict(width=3),
+                yaxis="y2",
+                hovertemplate="공고 수: %{y} 건<extra></extra>"
+            ))
+            
+            # 레이아웃 설정
             fig.update_layout(
+                title=f"{selected_year}년 월별 물동량 및 공고 현황",
                 title_font_size=20,
                 xaxis_title=None,
-                yaxis_title="공고 수",
+                yaxis=dict(
+                    title="물동량(명)",
+                    titlefont=dict(color="#1f77b4"),
+                    tickfont=dict(color="#1f77b4")
+                ),
+                yaxis2=dict(
+                    title="공고 수(건)",
+                    titlefont=dict(color="#ff7f0e"),
+                    tickfont=dict(color="#ff7f0e"),
+                    anchor="x",
+                    overlaying="y",
+                    side="right"
+                ),
                 plot_bgcolor="white",
-                margin=dict(l=20, r=20, t=50, b=20),
+                margin=dict(l=20, r=60, t=50, b=20),
                 height=400,
-                showlegend=False
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                showlegend=True
             )
             
             return fig
         
-        # 원본 데이터와 예측 데이터 구분하지 않고 통합
-        monthly = year_df.groupby("예상_입찰월")["공고명"].count().reset_index()
+        # 1. 월별 공고 수 계산
+        monthly_counts = year_df.groupby("예상_입찰월")["공고명"].count().reset_index()
+        monthly_counts.rename(columns={"공고명": "공고수"}, inplace=True)
         
-        # 월 이름 추가
-        monthly["월"] = monthly["예상_입찰월"].astype(str) + "월"
+        # 2. 월별 평균 물동량 계산
+        monthly_mm = year_df.groupby("예상_입찰월")["물동량 평균"].mean().reset_index()
+        monthly_mm["물동량 평균"] = monthly_mm["물동량 평균"].fillna(0).astype(int)
         
-        # 모든 월 (1-12) 생성
+        # 3. 데이터 병합
         all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
         all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
         
-        # 데이터 병합
-        monthly = pd.merge(all_months, monthly, on=["예상_입찰월", "월"], how="left")
-        monthly["공고명"] = monthly["공고명"].fillna(0)
+        # 공고 수 데이터 병합
+        all_months = pd.merge(all_months, monthly_counts, on="예상_입찰월", how="left")
+        all_months["공고수"] = all_months["공고수"].fillna(0).astype(int)
         
-        # 그래프 생성 - 단일 색상으로 통합
-        fig = px.bar(
-            monthly,
-            x="월",
-            y="공고명",
-            title=f"{selected_year}년 월별 공고 수" + (" (예측)" if selected_year > max_original_year else ""),
-            labels={"공고명": "공고 수", "월": ""},
-            color_discrete_sequence=["#1f77b4"]
-        )
+        # 물동량 데이터 병합
+        all_months = pd.merge(all_months, monthly_mm, on="예상_입찰월", how="left")
+        all_months["물동량 평균"] = all_months["물동량 평균"].fillna(0).astype(int)
+        
+        # 차트 생성
+        fig = go.Figure()
+        
+        # 막대 차트 추가 (물동량 평균)
+        fig.add_trace(go.Bar(
+            x=all_months["월"],
+            y=all_months["물동량 평균"],
+            name="평균 물동량(M/M)",
+            marker_color="#1f77b4",
+            hovertemplate="평균 물동량: %{y:,.0f} 명<extra></extra>"
+        ))
+        
+        # 선 차트 추가 (공고 수)
+        fig.add_trace(go.Scatter(
+            x=all_months["월"],
+            y=all_months["공고수"],
+            name="공고 수",
+            mode="lines+markers",
+            marker_color="#ff7f0e",
+            line=dict(width=3),
+            yaxis="y2",
+            hovertemplate="공고 수: %{y} 건<extra></extra>"
+        ))
+        
+        # 추가 타이틀 텍스트 (예측 데이터인 경우)
+        prediction_text = " (예측)" if selected_year > max_original_year else ""
         
         # 레이아웃 설정
         fig.update_layout(
+            title=f"{selected_year}년 월별 물동량 및 공고 현황{prediction_text}",
             title_font_size=20,
             xaxis_title=None,
-            yaxis_title="공고 수",
+            yaxis=dict(
+                title="물동량(명)",
+                titlefont=dict(color="#1f77b4"),
+                tickfont=dict(color="#1f77b4")
+            ),
+            yaxis2=dict(
+                title="공고 수(건)",
+                titlefont=dict(color="#ff7f0e"),
+                tickfont=dict(color="#ff7f0e"),
+                anchor="x",
+                overlaying="y",
+                side="right"
+            ),
             plot_bgcolor="white",
-            margin=dict(l=20, r=20, t=50, b=20),
+            margin=dict(l=20, r=60, t=50, b=20),
             height=400,
-            showlegend=False
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            showlegend=True
         )
         
+        # 그리드 라인 추가
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        
         return fig
-
+    
     @app.callback(
     [Output("next-bid-month", "children"),
     Output("org-count", "children"),
@@ -400,14 +484,14 @@ def register_month_navigation_callbacks(app, df):
                     
                     # 예측 입찰일 계산 - "예측_입찰일" 컬럼이 있으면 그 값을 사용, 없으면 계산
                     if "예측_입찰일" in row and pd.notna(row["예측_입찰일"]):
-                        predicted_date = row["예측_입찰일"].strftime('%Y-%m') if not pd.isna(row["예측_입찰일"]) else "-"
+                        predicted_date = row["예측_입찰일"].strftime('%Y-%m-%d') if not pd.isna(row["예측_입찰일"]) else "-"
                     else:
                         # 용역기간 기반 예측 계산 (용역기간-1개월 적용)
                         if pd.notna(row["예상_입찰일"]) and pd.notna(row["용역기간(개월)"]) and row["용역기간(개월)"] > 0:
                             # 용역기간에서 1개월 차감
                             adjusted_period = max(1, int(row["용역기간(개월)"]) - 1)  # 최소 1개월 보장
                             predicted_date = row["예상_입찰일"] + pd.DateOffset(months=adjusted_period)
-                            predicted_date = predicted_date.strftime('%Y-%m') if not pd.isna(predicted_date) else "-"
+                            predicted_date = predicted_date.strftime('%Y-%m-%d') if not pd.isna(predicted_date) else "-"
                         else:
                             predicted_date = "-"
                     
@@ -420,11 +504,14 @@ def register_month_navigation_callbacks(app, df):
                     duration = row['용역기간(개월)']
                     duration_display = '-' if duration == 0 else f'{duration} 개월'
                     
+                    # 입찰일 형식을 YYYY-MM-DD로 변경
+                    bid_date = row['예상_입찰일'].strftime('%Y-%m-%d') if pd.notna(row['예상_입찰일']) else '-'
+                    
                     bid_details = html.Details([
                         html.Summary(f"{emoji} {row['공고명']}", className=summary_class),
                         html.Div([
                             html.P(f"실수요기관: {row['실수요기관'] if row['실수요기관'] else '-'}", className="bid-detail"),
-                            html.P(f"입찰게시: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
+                            html.P(f"입찰게시: {bid_date}", className="bid-detail"),
                             html.P(f"(예측)입찰게시: {predicted_date}", className="bid-detail"),
                             html.P(f"평균M/M: {mm_value}", className="bid-detail"),
                             html.P(f"용역기간: {duration_display}", className="bid-detail"),
@@ -733,10 +820,10 @@ def register_full_table_callbacks(app, df):
         if "1순위 입찰업체" in table_df.columns:
             table_df["1순위 입찰업체"] = table_df["1순위 입찰업체"].apply(lambda x: "-" if x == "예측" else x)
         
-        # 날짜 형식 변환
+        # 날짜 형식을 연-월-일로 변환
         date_columns = [col for col in ["입찰게시", "(예측)입찰게시"] if col in table_df.columns]
         for col in date_columns:
-            table_df[col] = pd.to_datetime(table_df[col], errors='coerce').dt.strftime('%Y-%m')
+            table_df[col] = pd.to_datetime(table_df[col], errors='coerce').dt.strftime('%Y-%m-%d')
         
         # 테이블 컬럼 설정
         columns = []

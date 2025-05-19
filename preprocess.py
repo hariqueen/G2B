@@ -7,17 +7,25 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
     # CSV 파일 로딩
     df = pd.read_csv(input_csv)
     
-    # 연도, 월 데이터 정리
-    df["년"] = df["년"].astype(str).str.extract(r'(\d{4})').astype(int)
-    df["월"] = df["월"].astype(int)
-    df["년월"] = df["년"].astype(str) + df["월"].astype(str).str.zfill(2)
+    # 입찰일시 컬럼에서 날짜 정보 추출
+    df["입찰일시"] = pd.to_datetime(df["입찰일시"])
+    
+    # 예상_입찰일 설정 (입찰일시에서 추출)
+    df["예상_입찰일"] = df["입찰일시"].dt.date.apply(lambda x: pd.Timestamp(x))
+    
+    # 예상 연도와 월 컬럼 추가 (정렬 및 필터링용)
+    df["예상_연도"] = df["예상_입찰일"].dt.year
+    df["예상_입찰월"] = df["예상_입찰일"].dt.month
+    df["예상_입찰일자"] = df["예상_입찰일"].dt.day  # 일자 정보 추가
+    
+    # 예상_년월 컬럼 추가 (YYYY-MM 형식)
+    df["예상_년월"] = df["예상_입찰일"].dt.strftime('%Y-%m')
+    
+    # 예상_년월일 컬럼 추가 (YYYY-MM-DD 형식)
+    df["예상_년월일"] = df["예상_입찰일"].dt.strftime('%Y-%m-%d')
     
     # 용역기간 정수형으로 변환
     df["용역기간(개월)"] = df["용역기간(개월)"].fillna(0).astype(int)
-    
-    # 날짜 형식 변환 - 정확한 연도와 월 사용
-    df["공고_시작일"] = pd.to_datetime(df["년"].astype(str) + "-" + df["월"].astype(str).str.zfill(2) + "-01")
-    df["예상_입찰일"] = df["공고_시작일"]  # 입찰일은 공고 시작일과 동일하게 설정
     
     # 숫자 데이터 정리 함수
     def clean_numeric(value):
@@ -41,15 +49,12 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
     df["공고명"] = df["공고명"].fillna("").astype(str).str.strip()
     df["입찰결과_1순위"] = df["입찰결과_1순위"].fillna("").astype(str).str.strip()
     
-    # 예상 연도와 월 컬럼 추가 (정렬 및 필터링용)
-    df["예상_연도"] = df["예상_입찰일"].dt.year
-    df["예상_입찰월"] = df["예상_입찰일"].dt.month
-    
     # 필요한 컬럼만 선택
     df_processed = df[[
-        "년", "월", "년월", "실수요기관", "공고명", "물동량 평균",
+        "실수요기관", "공고명", "물동량 평균",
         "용역기간(개월)", "계약 기간 내", "입찰결과_1순위", "입찰금액_1순위",
-        "공고_시작일", "예상_입찰일", "예상_연도", "예상_입찰월"
+        "예상_입찰일", "예상_연도", "예상_입찰월", "예상_입찰일자", 
+        "예상_년월", "예상_년월일"
     ]]
     
     # NaN 값 처리
@@ -77,9 +82,6 @@ def preprocess_bid_data(input_csv: str, prediction_years: int = 30) -> pd.DataFr
     
     # 원본 데이터와 예측 데이터 병합
     df_combined = pd.concat([df_processed, df_prediction], ignore_index=True)
-    
-    # 예상_년월 컬럼 추가
-    df_combined["예상_년월"] = df_combined["예상_입찰일"].dt.strftime('%Y-%m')
     
     # 최종 결과 확인
     최종_연도별_데이터수 = df_combined.groupby("예상_연도")["공고명"].count()
@@ -136,6 +138,11 @@ def generate_prediction_data(df, prediction_years=30):
         new_row["예상_입찰일"] = predicted_date
         new_row["예상_연도"] = predicted_date.year
         new_row["예상_입찰월"] = predicted_date.month
+        new_row["예상_입찰일자"] = predicted_date.day  # 일자 정보 추가
+        
+        # 년월 및 년월일 정보 업데이트
+        new_row["예상_년월"] = predicted_date.strftime('%Y-%m')
+        new_row["예상_년월일"] = predicted_date.strftime('%Y-%m-%d')
         
         # 공고명에 예측 표시 추가
         new_row["공고명"] = f"{row['공고명']} (예측)"
