@@ -16,7 +16,24 @@ def initialize_firebase():
         firebase_admin.get_app()
     except ValueError:
         # 초기화되지 않은 경우 새로 초기화
-        cred = credentials.Certificate('g2b-db-6aae9-firebase-adminsdk-fbsvc-0e3b1ce560.json')
+        import os
+        import json
+        
+        # 환경 변수에서 Firebase 인증 정보 가져오기
+        firebase_credentials = os.environ.get('FIREBASE_CREDENTIALS')
+        
+        if firebase_credentials:
+            # 환경 변수에 저장된 JSON 문자열을 딕셔너리로 변환
+            cred_dict = json.loads(firebase_credentials)
+            cred = credentials.Certificate(cred_dict)
+        else:
+            # 로컬 개발 환경일 경우 파일 사용
+            try:
+                cred = credentials.Certificate('g2b-db-6aae9-firebase-adminsdk-fbsvc-0e3b1ce560.json')
+            except FileNotFoundError:
+                print("Firebase 인증 파일을 찾을 수 없습니다.")
+                raise
+                
         firebase_admin.initialize_app(cred, {
             'databaseURL': 'https://g2b-db-6aae9-default-rtdb.asia-southeast1.firebasedatabase.app/'
         })
