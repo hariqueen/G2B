@@ -416,6 +416,10 @@ def register_month_navigation_callbacks(app, df):
                     contract_value = "-" if row['계약 기간 내'] == 0 else f"{row['계약 기간 내']:,} 원"
                     bid_value = "-" if row['입찰금액_1순위'] == 0 else f"{row['입찰금액_1순위']:,} 원"
                     
+                    # 용역기간 표시 처리 - 별도 변수 사용
+                    duration = row['용역기간(개월)']
+                    duration_display = '-' if duration == 0 else f'{duration} 개월'
+                    
                     bid_details = html.Details([
                         html.Summary(f"{emoji} {row['공고명']}", className=summary_class),
                         html.Div([
@@ -423,7 +427,7 @@ def register_month_navigation_callbacks(app, df):
                             html.P(f"입찰게시: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
                             html.P(f"(예측)입찰게시: {predicted_date}", className="bid-detail"),
                             html.P(f"평균M/M: {mm_value}", className="bid-detail"),
-                            html.P(f"용역기간: {'-' if row['용역기간(개월)'] == 0 else f'{row['용역기간(개월)']} 개월'}", className="bid-detail"),
+                            html.P(f"용역기간: {duration_display}", className="bid-detail"),
                             html.P(f"계약금액: {contract_value}", className="bid-detail"),
                             html.P(f"(1순위)입찰업체: {'-' if row['입찰결과_1순위'] == '예측' or not row['입찰결과_1순위'] else row['입찰결과_1순위']}", className="bid-detail"),
                             html.P(f"(1순위)입찰금액: {bid_value}", className="bid-detail"),
