@@ -12,6 +12,7 @@ def register_callbacks(app, df):
     register_utility_callbacks(app, df)
     register_next_bid_navigation_callbacks(app, df)
     register_full_table_callbacks(app, df)
+    register_edit_callbacks(app, df)
     
 def register_year_callbacks(app, df):
     @app.callback(
@@ -495,12 +496,26 @@ def register_month_navigation_callbacks(app, df):
                         else:
                             predicted_date = "-"
                     
-                    # 값이 0인 경우 "-"로 표시하고, 있는 경우에만 단위 추가
-                    mm_value = "-" if row['물동량 평균'] == 0 else f"{row['물동량 평균']:,} 명"
-                    contract_value = "-" if row['계약 기간 내'] == 0 else f"{row['계약 기간 내']:,} 원"
-                    bid_value = "-" if row['입찰금액_1순위'] == 0 else f"{row['입찰금액_1순위']:,} 원"
+                    # 안전한 숫자 포맷팅 함수
+                    def safe_format_number(value, suffix=""):
+                        if value == 0 or pd.isna(value) or value == "":
+                            return "-"
+                        try:
+                            # 문자열인 경우 쉼표 제거
+                            if isinstance(value, str):
+                                value = value.replace(',', '')
+                            # 정수로 변환 후 천 단위 쉼표 포맷팅
+                            return f"{int(float(value)):,} {suffix}".strip()
+                        except (ValueError, TypeError):
+                            # 변환 실패 시 원본 반환
+                            return f"{value} {suffix}".strip()
                     
-                    # 용역기간 표시 처리 - 별도 변수 사용
+                    # 숫자 값 포맷팅 - 안전하게 처리
+                    mm_value = safe_format_number(row['물동량 평균'], "명")
+                    contract_value = safe_format_number(row['계약 기간 내'], "원")
+                    bid_value = safe_format_number(row['입찰금액_1순위'], "원")
+                    
+                    # 용역기간 표시 처리
                     duration = row['용역기간(개월)']
                     duration_display = '-' if duration == 0 else f'{duration} 개월'
                     
@@ -739,12 +754,14 @@ def register_next_bid_navigation_callbacks(app, df):
             return current_page + 1
         
         return current_page
-    
+
 def register_full_table_callbacks(app, df):
     @app.callback(
-    Output("full-table-container", "children"),
-    Input("selected-year", "data")
-)
+    [Output("full-table-container", "children"),
+     Output("update-status-table", "children", allow_duplicate=True)],
+    Input("selected-year", "data"),
+    prevent_initial_call=True
+    )
     def update_full_table(selected_year):
         # 원본 데이터의 최대 연도 확인
         max_original_year = df[~df["공고명"].str.contains("예측")]["예상_연도"].max() if not df[~df["공고명"].str.contains("예측")].empty else datetime.today().year
@@ -752,12 +769,12 @@ def register_full_table_callbacks(app, df):
         
         # 선택한 연도가 원본 데이터 최대 연도보다 크면 예측 데이터만 표시
         if selected_year > max_original_year:
-            year_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측"))].copy()
+            year_df = df[(df["예상_연도"] == selected_year) & (df["공고명"].str.contains("예측", case=False))].copy()
         else:
             year_df = df[df["예상_연도"] == selected_year].copy()
         
         if year_df.empty:
-            return html.Div("선택한 연도에 해당하는 공고가 없습니다.", className="no-data-message")
+            return html.Div("선택한 연도에 해당하는 공고가 없습니다.", className="no-data-message"), no_update
         
         # 테이블에 표시할 데이터 정렬
         year_df = year_df.sort_values(by="예상_입찰일")
@@ -808,7 +825,8 @@ def register_full_table_callbacks(app, df):
             "용역기간(개월)": "용역기간(개월)",
             "계약 기간 내": "계약금액(원)",
             "입찰결과_1순위": "1순위 입찰업체",
-            "입찰금액_1순위": "입찰금액(원)"
+            "입찰금액_1순위": "입찰금액(원)",
+            "bid_id": "bid_id"  # bid_id 포함 (숨겨진 컬럼)
         }
         
         # 필요한 컬럼만 선택하고 이름 변경
@@ -828,7 +846,13 @@ def register_full_table_callbacks(app, df):
         # 테이블 컬럼 설정
         columns = []
         for col_id in table_df.columns:
-            if col_id in ["입찰게시", "(예측)입찰게시"]:
+            if col_id == "bid_id":
+                # bid_id는 컬럼에 포함하되 나중에 hidden_columns로 숨김
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id
+                })
+            elif col_id in ["입찰게시", "(예측)입찰게시"]:
                 # 날짜 - 좌측 정렬 (기본)
                 columns.append({
                     "name": col_id, 
@@ -851,13 +875,23 @@ def register_full_table_callbacks(app, df):
                     "type": "numeric", 
                     "format": {"specifier": ","}
                 })
-            elif col_id in ["용역기간(개월)", "평균M/M"]:
-                # 숫자 - 우측 정렬
+            elif col_id == "평균M/M":
+                # 물동량 - 우측 정렬, 천 단위 쉼표, 편집 가능
                 columns.append({
                     "name": col_id, 
                     "id": col_id, 
                     "type": "numeric", 
-                    "format": {"specifier": ","}
+                    "format": {"specifier": ","},
+                    "editable": True  # 편집 가능 설정
+                })
+            elif col_id == "용역기간(개월)":
+                # 용역기간 - 우측 정렬, 편집 가능
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id, 
+                    "type": "numeric", 
+                    "format": {"specifier": ","},
+                    "editable": True  # 편집 가능 설정
                 })
             else:
                 columns.append({
@@ -922,6 +956,30 @@ def register_full_table_callbacks(app, df):
                 {
                     'if': {'row_index': 'odd'},
                     'backgroundColor': 'rgb(248, 248, 248)'
+                },
+                # 편집 가능한 셀 강조
+                {
+                    'if': {'column_editable': True},
+                    'backgroundColor': 'rgba(255, 250, 230, 0.5)',
+                    'border': '1px solid #ffeb3b'
+                },
+                # NULL 값 강조 (평균M/M)
+                {
+                    'if': {
+                        'filter_query': '{평균M/M} = 0 || {평균M/M} is blank',
+                        'column_id': '평균M/M'
+                    },
+                    'backgroundColor': '#ffdddd',
+                    'color': 'red'
+                },
+                # NULL 값 강조 (용역기간(개월))
+                {
+                    'if': {
+                        'filter_query': '{용역기간(개월)} = 0 || {용역기간(개월)} is blank',
+                        'column_id': '용역기간(개월)'
+                    },
+                    'backgroundColor': '#ffdddd',
+                    'color': 'red'
                 }
             ],
             style_filter={
@@ -943,8 +1001,22 @@ def register_full_table_callbacks(app, df):
                     for column, value in row.items()
                 } for row in table_df.to_dict('records')
             ],
-            tooltip_duration=None
+            tooltip_duration=None,
+            # 테이블 전체는 편집 불가, 특정 셀만 편집 가능
+            editable=False,
+            # Toggle Columns 버튼 숨기기 설정
+            column_selectable=False
         )
+        
+        # 필터 버튼 추가
+        filter_buttons = html.Div([
+            html.Button("빈 값만 보기 (평균M/M)", id="filter-mm-btn", n_clicks=0, 
+                        style={"marginRight": "10px", "backgroundColor": "#e7f2fc", "border": "1px solid #ccc", "padding": "5px 10px"}),
+            html.Button("빈 값만 보기 (용역기간)", id="filter-duration-btn", n_clicks=0,
+                        style={"marginRight": "10px", "backgroundColor": "#e7f2fc", "border": "1px solid #ccc", "padding": "5px 10px"}),
+            html.Button("모두 보기", id="filter-all-btn", n_clicks=0,
+                        style={"backgroundColor": "#e7f2fc", "border": "1px solid #ccc", "padding": "5px 10px"})
+        ], style={"marginBottom": "15px"})
         
         # 공고 수 계산
         total_count = len(table_df)
@@ -955,11 +1027,151 @@ def register_full_table_callbacks(app, df):
         else:
             title_text = f"{selected_year}년 공고 총 {total_count}건"
         
+        # 설명 텍스트 추가 (편집 기능 안내)
+        help_text = html.Div([
+            html.P("물동량 평균과 용역기간 셀을 직접 클릭하여 값을 수정할 수 있습니다.", 
+                   style={"color": "#0275d8", "fontStyle": "italic", "marginTop": "10px"})
+        ])
+        
         return html.Div([
             html.Div([
                 html.P([
                     title_text,
                 ], className="table-summary-text"),
+                help_text
             ], className="table-summary-container"),
+            filter_buttons,  # 필터 버튼 추가
             html.Div(table, className="table-container")
-        ])
+        ]), no_update
+    
+    @app.callback(
+        Output("update-status-table", "children"),
+        [Input("full-data-table", "data_timestamp")],
+        [State("full-data-table", "data"),
+         State("full-data-table", "data_previous")]
+    )
+    def update_database_from_table(timestamp, current_data, previous_data):
+        if timestamp is None or current_data is None or previous_data is None:
+            return no_update
+        
+        # 변경된 데이터 찾기
+        changes = []
+        for i, (current_row, previous_row) in enumerate(zip(current_data, previous_data)):
+            if current_row != previous_row:
+                # 변경 감지
+                bid_id = current_row.get('bid_id')
+                if not bid_id:
+                    continue
+                
+                # 물동량 평균 변경 확인
+                if current_row.get('평균M/M') != previous_row.get('평균M/M'):
+                    try:
+                        new_value = float(current_row.get('평균M/M', 0))
+                        app.update_firebase_data(bid_id, "물동량 평균", new_value)
+                        changes.append(f"물동량 평균 변경: {previous_row.get('평균M/M')} → {current_row.get('평균M/M')}")
+                    except (ValueError, TypeError) as e:
+                        changes.append(f"물동량 평균 변경 오류: {e}")
+                
+                # 용역기간 변경 확인
+                if current_row.get('용역기간(개월)') != previous_row.get('용역기간(개월)'):
+                    try:
+                        new_value = float(current_row.get('용역기간(개월)', 0))
+                        app.update_firebase_data(bid_id, "용역기간(개월)", new_value)
+                        changes.append(f"용역기간 변경: {previous_row.get('용역기간(개월)')} → {current_row.get('용역기간(개월)')}")
+                    except (ValueError, TypeError) as e:
+                        changes.append(f"용역기간 변경 오류: {e}")
+        
+        if changes:
+            return html.Div([
+                html.P("변경 내용이 저장되었습니다:", style={"fontWeight": "bold", "marginBottom": "8px"}),
+                html.Ul([html.Li(change) for change in changes], style={"marginLeft": "20px"})
+            ], style={"color": "green", "backgroundColor": "#e8f5e9", "padding": "10px", "borderRadius": "5px", "marginTop": "10px"})
+        
+        return no_update
+    
+    @app.callback(
+        Output("full-data-table", "filter_query"),
+        [Input("filter-mm-btn", "n_clicks"),
+         Input("filter-duration-btn", "n_clicks"),
+         Input("filter-all-btn", "n_clicks")]
+    )
+    def filter_table(mm_clicks, duration_clicks, all_clicks):
+        # 클릭된 버튼 확인
+        ctx = callback_context
+        if not ctx.triggered:
+            # 초기 로드 시 필터 없음
+            return ""
+        
+        # 어떤 버튼이 클릭되었는지 확인
+        button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        
+        if button_id == "filter-mm-btn":
+            # 평균M/M이 0 또는 빈 값인 행만 표시
+            return "{평균M/M} = 0 || {평균M/M} is blank"
+        elif button_id == "filter-duration-btn":
+            # 용역기간(개월)이 0 또는 빈 값인 행만 표시
+            return "{용역기간(개월)} = 0 || {용역기간(개월)} is blank"
+        elif button_id == "filter-all-btn":
+            # 모든 행 표시 (필터 제거)
+            return ""
+        
+        # 기본값: 필터 없음
+        return ""
+        
+def register_edit_callbacks(app, df):
+    @app.callback(
+        [Output("edit-data-modal", "is_open"),
+         Output("modal-bid-name", "children"),
+         Output("mm-input", "value"),
+         Output("duration-input", "value"),
+         Output("bid-id-input", "value")],
+        [Input("edit-bid-btn", "n_clicks")],
+        [State("selected-bid", "data")]
+    )
+    def open_edit_modal(n_clicks, selected_bid):
+        if not n_clicks or not selected_bid:
+            return False, "", None, None, ""
+        
+        # 선택된 입찰 정보 찾기
+        bid_info = df[df["공고명"] == selected_bid].iloc[0] if len(df[df["공고명"] == selected_bid]) > 0 else None
+        
+        if bid_info is None:
+            return False, "", None, None, ""
+        
+        return True, bid_info["공고명"], bid_info["물동량 평균"], bid_info["용역기간(개월)"], bid_info["bid_id"]
+    
+    @app.callback(
+        Output("edit-data-modal", "is_open", allow_duplicate=True),
+        [Input("close-modal-btn", "n_clicks")],
+        prevent_initial_call=True
+    )
+    def close_modal(n_clicks):
+        if n_clicks:
+            return False
+        return no_update
+    
+    @app.callback(
+        [Output("update-status", "children"),
+         Output("edit-data-modal", "is_open", allow_duplicate=True)],
+        [Input("save-changes-btn", "n_clicks")],
+        [State("bid-id-input", "value"),
+         State("mm-input", "value"),
+         State("duration-input", "value")],
+        prevent_initial_call=True
+    )
+    def save_changes(n_clicks, bid_id, mm_value, duration_value):
+        if not n_clicks or not bid_id:
+            return no_update, no_update
+        
+        # 물동량 평균 업데이트
+        mm_success, mm_message = app.update_firebase_data(bid_id, "물동량 평균", mm_value)
+        
+        # 용역기간 업데이트
+        duration_success, duration_message = app.update_firebase_data(bid_id, "용역기간(개월)", duration_value)
+        
+        if mm_success and duration_success:
+            # 성공 시 모달 닫기
+            return html.Div("저장이 완료되었습니다.", style={"color": "green"}), False
+        else:
+            # 실패 시 모달 유지하고 에러 표시
+            return html.Div(f"오류: {mm_message}, {duration_message}", style={"color": "red"}), True
