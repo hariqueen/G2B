@@ -411,17 +411,22 @@ def register_month_navigation_callbacks(app, df):
                         else:
                             predicted_date = "-"
                     
+                    # 값이 0인 경우 "-"로 표시하고, 있는 경우에만 단위 추가
+                    mm_value = "-" if row['물동량 평균'] == 0 else f"{row['물동량 평균']:,} 명"
+                    contract_value = "-" if row['계약 기간 내'] == 0 else f"{row['계약 기간 내']:,} 원"
+                    bid_value = "-" if row['입찰금액_1순위'] == 0 else f"{row['입찰금액_1순위']:,} 원"
+                    
                     bid_details = html.Details([
                         html.Summary(f"{emoji} {row['공고명']}", className=summary_class),
                         html.Div([
-                            html.P(f"실수요기관: {row['실수요기관'] if pd.notna(row['실수요기관']) else '-'}", className="bid-detail"),
+                            html.P(f"실수요기관: {row['실수요기관'] if row['실수요기관'] else '-'}", className="bid-detail"),
                             html.P(f"입찰게시: {row['예상_입찰일'].strftime('%Y-%m') if pd.notna(row['예상_입찰일']) else '-'}", className="bid-detail"),
                             html.P(f"(예측)입찰게시: {predicted_date}", className="bid-detail"),
-                            html.P(f"M/M: {row['물동량 평균'] if pd.notna(row['물동량 평균']) else '-'}", className="bid-detail"),
-                            html.P(f"용역기간: {row['용역기간(개월)'] if pd.notna(row['용역기간(개월)']) else '-'}{'개월' if pd.notna(row['용역기간(개월)']) else ''}", className="bid-detail"),
-                            html.P(f"계약금액: {row['계약 기간 내'] if pd.notna(row['계약 기간 내']) else '-'}{'원' if pd.notna(row['계약 기간 내']) else ''}", className="bid-detail"),
-                            html.P(f"1순위 입찰업체: {'-' if row['입찰결과_1순위'] == '예측' else (row['입찰결과_1순위'] if pd.notna(row['입찰결과_1순위']) else '-')}", className="bid-detail"),
-                            html.P(f"입찰금액: {row['입찰금액_1순위'] if pd.notna(row['입찰금액_1순위']) and row['입찰금액_1순위'] != 0 else '-'}{'원' if pd.notna(row['입찰금액_1순위']) and row['입찰금액_1순위'] != 0 else ''}", className="bid-detail"),
+                            html.P(f"평균M/M: {mm_value}", className="bid-detail"),
+                            html.P(f"용역기간: {'-' if row['용역기간(개월)'] == 0 else f'{row['용역기간(개월)']} 개월'}", className="bid-detail"),
+                            html.P(f"계약금액: {contract_value}", className="bid-detail"),
+                            html.P(f"(1순위)입찰업체: {'-' if row['입찰결과_1순위'] == '예측' or not row['입찰결과_1순위'] else row['입찰결과_1순위']}", className="bid-detail"),
+                            html.P(f"(1순위)입찰금액: {bid_value}", className="bid-detail"),
                         ])
                     ])
                     month_bids.append(bid_details)
@@ -434,7 +439,7 @@ def register_month_navigation_callbacks(app, df):
                 month_cells.append(html.Div(section, className="month-cell"))
 
         return month_cells, range_display, prev_button_disabled, next_button_disabled
-    
+        
 def register_bid_selection_callbacks(app, df):
     @app.callback(
         [Output("selected-month", "data", allow_duplicate=True),
@@ -747,13 +752,21 @@ def register_full_table_callbacks(app, df):
                     "type": "text", 
                     "filter_options": {"case": "insensitive"}
                 })
-            elif col_id in ["계약금액(원)", "입찰금액(원)", "용역기간(개월)", "평균M/M"]:
+            elif col_id in ["계약금액(원)", "입찰금액(원)"]:
+                # 금액 - 우측 정렬, 천 단위 쉼표
+                columns.append({
+                    "name": col_id, 
+                    "id": col_id, 
+                    "type": "numeric", 
+                    "format": {"specifier": ","}
+                })
+            elif col_id in ["용역기간(개월)", "평균M/M"]:
                 # 숫자 - 우측 정렬
                 columns.append({
                     "name": col_id, 
                     "id": col_id, 
                     "type": "numeric", 
-                    "format": {"specifier": ","} if col_id in ["계약금액(원)", "입찰금액(원)"] else {}
+                    "format": {"specifier": ","}
                 })
             else:
                 columns.append({
