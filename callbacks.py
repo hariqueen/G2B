@@ -85,9 +85,9 @@ def register_info_callbacks(app, df):
             fig.add_trace(go.Bar(
                 x=all_months["월"],
                 y=all_months["물동량평균"],
-                name="평균 물동량(M/M)",
+                name="총 물동량(M/M)",
                 marker_color="#1f77b4",
-                hovertemplate="평균 물동량: %{y:,.0f} 명<extra></extra>"
+                hovertemplate="총 물동량: %{y:,.0f} 명<extra></extra>"
             ))
             
             # 선 차트 추가 (공고 수) - 0으로 표시
@@ -140,7 +140,7 @@ def register_info_callbacks(app, df):
         monthly_counts.rename(columns={"공고명": "공고수"}, inplace=True)
         
         # 2. 월별 평균 물동량 계산
-        monthly_mm = year_df.groupby("예상_입찰월")["물동량 평균"].mean().reset_index()
+        monthly_mm = year_df.groupby("예상_입찰월")["물동량 평균"].sum().reset_index()
         monthly_mm["물동량 평균"] = monthly_mm["물동량 평균"].fillna(0).astype(int)
         
         # 3. 데이터 병합
@@ -160,11 +160,11 @@ def register_info_callbacks(app, df):
         
         # 막대 차트 추가 (물동량 평균)
         fig.add_trace(go.Bar(
-            x=all_months["월"],
-            y=all_months["물동량 평균"],
-            name="평균 물동량(M/M)",
-            marker_color="#1f77b4",
-            hovertemplate="평균 물동량: %{y:,.0f} 명<extra></extra>"
+        x=all_months["월"],
+        y=all_months["물동량 평균"],
+        name="평균 물동량(M/M)",
+        marker_color="#1f77b4",
+        hovertemplate="평균 물동량: %{y:,.0f} 명<extra></extra>"
         ))
         
         # 선 차트 추가 (공고 수)
