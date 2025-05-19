@@ -42,3 +42,7 @@ env/
 .vscode/
 *.swp
 *.swo
+
+# Firebase 서비스 계정 키
+*-firebase-adminsdk-*.json
+*-rtdb-export.json
