@@ -141,13 +141,16 @@ def generate_prediction_data(df, prediction_years=5):
         # 최대 예측 연도 설정
         max_prediction_year = current_year + prediction_years
         
+        # 예측 차수 계산용 카운터
+        prediction_count = 1
+        
         # 예측 루프 - 주어진 연도 범위 내에서 반복 예측
         # 첫 예측부터 시작 (최대 연도 제한 없음) - 모든 연도에 예측 데이터 생성
         while next_date.year <= max_prediction_year:
             prediction = bid.copy()
             
-            # 예측 표시 추가
-            prediction["공고명"] = f"{bid['공고명']} (예측)"
+            # 예측 표시 추가 (n차 예측 표시)
+            prediction["공고명"] = f"{bid['공고명']} ({prediction_count}차 예측)"
             
             # 원본 입찰일을 저장
             prediction["원본_입찰일"] = original_date
@@ -167,12 +170,16 @@ def generate_prediction_data(df, prediction_years=5):
             
             # 예측 플래그 추가
             prediction["is_prediction"] = True
+            prediction["prediction_count"] = prediction_count
             
             # 예측 데이터 추가
             predictions.append(prediction)
             
             # 다음 예측일 계산 (용역기간 주기로 반복)
             next_date += pd.DateOffset(months=service_months)
+            
+            # 예측 차수 증가
+            prediction_count += 1
     
     # 예측 데이터가 없으면 빈 데이터프레임 반환
     if not predictions:

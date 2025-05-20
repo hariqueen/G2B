@@ -626,12 +626,23 @@ def register_month_navigation_callbacks(app, df):
                     
                     # 예측 공고와 원본 공고에 따라 약간 다른 정보 표시
                     if is_prediction:
+                        # 예측 차수 정보 추출 - 공고명에서 "n차 예측" 형식 추출
+                        prediction_label = " (예측)"
+                        if "차 예측" in row['공고명']:
+                            # "n차 예측" 형식 추출
+                            import re
+                            match = re.search(r'(\d+차 예측)', row['공고명'])
+                            if match:
+                                prediction_label = f" ({match.group(1)})"
+                        
+                        # 공고명에서 예측 표시 제거 (n차 예측 포함)
+                        clean_name = re.sub(r' \(\d+차 예측\)| \(예측\)', '', row['공고명'])
+                        
                         # 예측 공고용 상세 정보
                         bid_details = html.Details([
                             html.Summary([
-                                html.Span(emoji, className="prediction-icon"),
-                                f"{row['공고명'].replace(' (예측)', '')}",
-                                html.Span(" (예측)", className="prediction-label")
+                                f"{clean_name}",
+                                html.Span(prediction_label, className="prediction-label")
                             ], className=summary_class),
                             html.Div([
                                 html.P(f"실수요기관: {row['실수요기관'] if row['실수요기관'] else '-'}", className="bid-detail"),
