@@ -58,6 +58,16 @@ def load_data_from_firebase():
             for bid_id, bid_info in bids_data[year][month].items():
                 row = bid_info.copy()
                 
+                # Firebase 컬럼명을 앱 내부 컬럼명으로 매핑
+                if "낙찰금액" in row:
+                    row["입찰금액_1순위"] = row.pop("낙찰금액")
+                if "사업금액" in row:
+                    row["계약 기간 내"] = row.pop("사업금액")
+                if "채권자명" in row:
+                    row["실수요기관"] = row.pop("채권자명")
+                if "개찰업체정보" in row:
+                    row["입찰결과_1순위"] = row.pop("개찰업체정보")
+                
                 # 사용자 입력 데이터 추가
                 if bid_id in user_inputs:
                     user_data = user_inputs[bid_id]
@@ -139,6 +149,17 @@ callbacks.register_callbacks(app, df)
 def update_firebase_data(bid_id, field, value):
     """Firebase에 데이터 업데이트 함수"""
     try:
+        # 앱 내부 컬럼명을 Firebase 컬럼명으로 변환
+        firebase_field = field
+        if field == "입찰금액_1순위":
+            firebase_field = "낙찰금액"
+        elif field == "계약 기간 내":
+            firebase_field = "사업금액"
+        elif field == "실수요기관":
+            firebase_field = "채권자명"
+        elif field == "입찰결과_1순위":
+            firebase_field = "개찰업체정보"
+        
         # 사용자 입력 레퍼런스
         user_input_ref = db.reference(f'/user_inputs/{bid_id}')
         
@@ -146,7 +167,7 @@ def update_firebase_data(bid_id, field, value):
         current_data = user_input_ref.get() or {}
         
         # 값 업데이트
-        current_data[field] = float(value)
+        current_data[firebase_field] = float(value)
         current_data['마지막_수정일'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         current_data['수정자'] = 'dashboard_user'
         
