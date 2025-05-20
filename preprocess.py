@@ -132,8 +132,8 @@ def generate_prediction_data(df, prediction_years=5):
         if pd.isna(bid["용역기간(개월)"]) or bid["용역기간(개월)"] <= 0:
             continue
             
-        # 용역기간 기준으로 다음 예측일 계산 (용역기간-1 적용)
-        service_months = max(1, int(bid["용역기간(개월)"]) - 1)  # 최소 1개월 보장
+        # 용역기간 그대로 사용 (1개월 차감하지 않음)
+        service_months = max(1, int(bid["용역기간(개월)"]))
         
         # 첫 예측 시작 시점 계산
         next_date = original_date + pd.DateOffset(months=service_months)

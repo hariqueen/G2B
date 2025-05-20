@@ -103,7 +103,7 @@ def load_data_from_firebase():
     print(f"총 {len(df)} 레코드 로드 완료")
     
     # 예측 데이터 생성 로직 추가
-    prediction_df = generate_prediction_data(df, prediction_years=5)
+    prediction_df = generate_prediction_data(df, prediction_years=3)
     
     # 원본 데이터와 예측 데이터 병합
     if not prediction_df.empty:
@@ -125,6 +125,8 @@ initialize_firebase()
 
 # Firebase에서 데이터 로드
 df = load_data_from_firebase()
+print(f"총 {len(df)} 레코드 로드 완료")
+print(f"원본 데이터 최대 연도: {df[~df['공고명'].str.contains('예측')]['예상_연도'].max()}")
 
 # 항상 고정된 월 그룹 사용: (1-4), (5-8), (9-12)
 months = list(range(1, 13))

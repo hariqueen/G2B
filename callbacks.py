@@ -66,7 +66,7 @@ def register_info_callbacks(app, df):
         original_df = df[~df["공고명"].str.contains("예측", na=False)]
         prediction_df = df[df["공고명"].str.contains("예측", na=False)]
         
-        # 선택한 연도의 데이터 필터링 - 원본/예측 모두 표시하도록 변경
+        # 선택한 연도의 데이터 필터링
         year_original_df = original_df[original_df["예상_연도"] == selected_year]
         year_prediction_df = prediction_df[prediction_df["예상_연도"] == selected_year]
         
@@ -75,10 +75,8 @@ def register_info_callbacks(app, df):
             # 모든 월 (1-12) 생성
             all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
             all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
-            all_months["공고수_원본"] = 0
-            all_months["공고수_예측"] = 0
-            all_months["물동량평균_원본"] = 0
-            all_months["물동량평균_예측"] = 0
+            all_months["공고수"] = 0
+            all_months["물동량"] = 0
             
             # 빈 차트 생성
             fig = go.Figure()
@@ -86,41 +84,22 @@ def register_info_callbacks(app, df):
             # 막대 차트 추가 (물동량 평균) - 0으로 표시
             fig.add_trace(go.Bar(
                 x=all_months["월"],
-                y=all_months["물동량평균_원본"],
-                name="물동량(M/M) - 원본",
-                marker_color="#1f77b4",
-                hovertemplate="물동량(원본): %{y:,.0f} 명<extra></extra>"
-            ))
-            
-            fig.add_trace(go.Bar(
-                x=all_months["월"],
-                y=all_months["물동량평균_예측"],
-                name="물동량(M/M) - 예측",
+                y=all_months["물동량"],
+                name="물동량(M/M)",
                 marker_color="#17becf",
-                hovertemplate="물동량(예측): %{y:,.0f} 명<extra></extra>"
+                hovertemplate="물동량: %{y:,.0f} 명<extra></extra>"
             ))
             
             # 선 차트 추가 (공고 수) - 0으로 표시
             fig.add_trace(go.Scatter(
                 x=all_months["월"],
-                y=all_months["공고수_원본"],
-                name="공고 수 - 원본",
-                mode="lines+markers",
-                marker_color="#ff7f0e",
-                line=dict(width=3),
-                yaxis="y2",
-                hovertemplate="공고 수(원본): %{y} 건<extra></extra>"
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=all_months["월"],
-                y=all_months["공고수_예측"],
-                name="공고 수 - 예측",
+                y=all_months["공고수"],
+                name="공고 수",
                 mode="lines+markers",
                 marker_color="#d62728",
-                line=dict(width=3, dash='dot'),
+                line=dict(width=3),
                 yaxis="y2",
-                hovertemplate="공고 수(예측): %{y} 건<extra></extra>"
+                hovertemplate="공고 수: %{y} 건<extra></extra>"
             ))
             
             # 레이아웃 설정
@@ -130,18 +109,17 @@ def register_info_callbacks(app, df):
                 xaxis_title=None,
                 yaxis=dict(
                     title="물동량(명)",
-                    titlefont=dict(color="#1f77b4"),
-                    tickfont=dict(color="#1f77b4")
+                    titlefont=dict(color="#17becf"),
+                    tickfont=dict(color="#17becf")
                 ),
                 yaxis2=dict(
                     title="공고 수(건)",
-                    titlefont=dict(color="#ff7f0e"),
-                    tickfont=dict(color="#ff7f0e"),
+                    titlefont=dict(color="#d62728"),
+                    tickfont=dict(color="#d62728"),
                     anchor="x",
                     overlaying="y",
                     side="right"
                 ),
-                barmode='group',  # 그룹 막대 차트로 설정
                 plot_bgcolor="white",
                 margin=dict(l=20, r=60, t=50, b=20),
                 height=400,
@@ -164,11 +142,11 @@ def register_info_callbacks(app, df):
             
             # 월별 평균 물동량 계산 (원본)
             monthly_mm_original = year_original_df.groupby("예상_입찰월")["물동량 평균"].sum().reset_index()
-            monthly_mm_original.rename(columns={"물동량 평균": "물동량평균_원본"}, inplace=True)
+            monthly_mm_original.rename(columns={"물동량 평균": "물동량_원본"}, inplace=True)
         else:
             # 원본 데이터가 없는 경우 빈 DataFrame 생성
             monthly_counts_original = pd.DataFrame({"예상_입찰월": [], "공고수_원본": []})
-            monthly_mm_original = pd.DataFrame({"예상_입찰월": [], "물동량평균_원본": []})
+            monthly_mm_original = pd.DataFrame({"예상_입찰월": [], "물동량_원본": []})
         
         # 2. 월별 예측 공고 수 계산
         if not year_prediction_df.empty:
@@ -177,11 +155,11 @@ def register_info_callbacks(app, df):
             
             # 월별 평균 물동량 계산 (예측)
             monthly_mm_prediction = year_prediction_df.groupby("예상_입찰월")["물동량 평균"].sum().reset_index()
-            monthly_mm_prediction.rename(columns={"물동량 평균": "물동량평균_예측"}, inplace=True)
+            monthly_mm_prediction.rename(columns={"물동량 평균": "물동량_예측"}, inplace=True)
         else:
             # 예측 데이터가 없는 경우 빈 DataFrame 생성
             monthly_counts_prediction = pd.DataFrame({"예상_입찰월": [], "공고수_예측": []})
-            monthly_mm_prediction = pd.DataFrame({"예상_입찰월": [], "물동량평균_예측": []})
+            monthly_mm_prediction = pd.DataFrame({"예상_입찰월": [], "물동량_예측": []})
         
         # 3. 데이터 병합
         all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
@@ -193,7 +171,7 @@ def register_info_callbacks(app, df):
         
         # 원본 물동량 데이터 병합
         all_months = pd.merge(all_months, monthly_mm_original, on="예상_입찰월", how="left")
-        all_months["물동량평균_원본"] = all_months["물동량평균_원본"].fillna(0).astype(int)
+        all_months["물동량_원본"] = all_months["물동량_원본"].fillna(0).astype(int)
         
         # 예측 공고 수 데이터 병합
         all_months = pd.merge(all_months, monthly_counts_prediction, on="예상_입찰월", how="left")
@@ -201,70 +179,79 @@ def register_info_callbacks(app, df):
         
         # 예측 물동량 데이터 병합
         all_months = pd.merge(all_months, monthly_mm_prediction, on="예상_입찰월", how="left")
-        all_months["물동량평균_예측"] = all_months["물동량평균_예측"].fillna(0).astype(int)
+        all_months["물동량_예측"] = all_months["물동량_예측"].fillna(0).astype(int)
+        
+        # 4. 단일 데이터셋 생성 (예측이 있으면 예측, 없으면 원본)
+        all_months["물동량"] = all_months.apply(
+            lambda row: row["물동량_예측"] if row["물동량_예측"] > 0 else row["물동량_원본"], 
+            axis=1
+        )
+        
+        all_months["공고수"] = all_months.apply(
+            lambda row: row["공고수_예측"] if row["공고수_예측"] > 0 else row["공고수_원본"], 
+            axis=1
+        )
+        
+        # 5. 예측 데이터 있는 월 표시하기 위한 플래그
+        all_months["is_prediction"] = all_months["물동량_예측"] > 0
         
         # 차트 생성
         fig = go.Figure()
         
-        # 막대 차트 추가 (물동량 평균 - 원본/예측 구분)
+        # 막대 차트 추가 (물동량 - 단일 시리즈)
         fig.add_trace(go.Bar(
             x=all_months["월"],
-            y=all_months["물동량평균_원본"],
-            name="물동량(M/M) - 원본",
-            marker_color="#1f77b4",
-            hovertemplate="원본 물동량: %{y:,.0f} 명<extra></extra>"
-        ))
-        
-        fig.add_trace(go.Bar(
-            x=all_months["월"],
-            y=all_months["물동량평균_예측"],
-            name="물동량(M/M) - 예측",
+            y=all_months["물동량"],
+            name="물동량(M/M)",
             marker_color="#17becf",
-            hovertemplate="예측 물동량: %{y:,.0f} 명<extra></extra>"
+            marker=dict(
+                color=all_months.apply(
+                    lambda row: "#17becf" if row["is_prediction"] else "#1f77b4", 
+                    axis=1
+                )
+            ),
+            hovertemplate="물동량: %{y:,.0f} 명<extra></extra>",
         ))
         
-        # 선 차트 추가 (공고 수 - 원본/예측 구분)
+        # 선 차트 추가 (공고 수 - 단일 시리즈)
         fig.add_trace(go.Scatter(
             x=all_months["월"],
-            y=all_months["공고수_원본"],
-            name="공고 수 - 원본",
-            mode="lines+markers",
-            marker_color="#ff7f0e",
-            line=dict(width=3),
-            yaxis="y2",
-            hovertemplate="원본 공고 수: %{y} 건<extra></extra>"
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=all_months["월"],
-            y=all_months["공고수_예측"],
-            name="공고 수 - 예측",
+            y=all_months["공고수"],
+            name="공고 수",
             mode="lines+markers",
             marker_color="#d62728",
-            line=dict(width=3, dash='dot'),
+            marker=dict(
+                color=all_months.apply(
+                    lambda row: "#d62728" if row["is_prediction"] else "#ff7f0e", 
+                    axis=1
+                )
+            ),
+            line=dict(width=3),
             yaxis="y2",
-            hovertemplate="예측 공고 수: %{y} 건<extra></extra>"
+            hovertemplate="물동량: %{y:,.0f} 명<extra></extra>",
         ))
+        
+        # 예측 데이터 있는 경우에만 예측 표시 추가
+        has_prediction = all_months["is_prediction"].any()
         
         # 레이아웃 설정
         fig.update_layout(
-            title=f"{selected_year}년 월별 물동량 및 공고 현황 (원본+예측)",
+            title=f"{selected_year}년 월별 물동량 및 공고 현황 예측",
             title_font_size=20,
             xaxis_title=None,
             yaxis=dict(
                 title="물동량(명)",
-                titlefont=dict(color="#1f77b4"),
-                tickfont=dict(color="#1f77b4")
+                titlefont=dict(color="#17becf"),
+                tickfont=dict(color="#17becf")
             ),
             yaxis2=dict(
                 title="공고 수(건)",
-                titlefont=dict(color="#ff7f0e"),
-                tickfont=dict(color="#ff7f0e"),
+                titlefont=dict(color="#d62728"),
+                tickfont=dict(color="#d62728"),
                 anchor="x",
                 overlaying="y",
                 side="right"
             ),
-            barmode='group',  # 그룹 막대 차트로 설정
             plot_bgcolor="white",
             margin=dict(l=20, r=60, t=50, b=20),
             height=400,
@@ -429,9 +416,8 @@ def register_info_callbacks(app, df):
                 buttons.append(button)
             
             # 원본과 예측 공고 개수 표시
-            원본_개수 = len(기관공고_원본)
-            예측_개수 = len(기관공고_예측)
-            공고_개수_표시 = f"(원본: {원본_개수}건, 예측: {예측_개수}건)"
+            전체_개수 = len(기관공고_원본) + len(기관공고_예측)
+            공고_개수_표시 = f"({전체_개수}건)"
             
             org_details = html.Details([
                 html.Summary(f"{name} {공고_개수_표시}", className="org-name"),
@@ -1157,10 +1143,7 @@ def register_full_table_callbacks(app, df):
         total_count = len(table_df)
         
         # 제목에 예측 표시 추가 (미래 데이터인 경우)
-        if is_future_data:
-            title_text = f"{selected_year}년 공고 총 {total_count}건 (예측일은 용역기간-1개월로 산정)"
-        else:
-            title_text = f"{selected_year}년 공고 총 {total_count}건"
+        title_text = f"{selected_year}년 공고 총 {total_count}건 (예측일은 게시일+용역기간 시점으로 산정)"
         
         # 설명 텍스트 추가 (편집 기능 안내)
         help_text = html.Div([
