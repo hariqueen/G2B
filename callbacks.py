@@ -1032,6 +1032,7 @@ def register_full_table_callbacks(app, df):
                 'maxHeight': '600px',
                 'overflowY': 'auto'
             },
+            hidden_columns=["bid_id"],
             # 기본 셀 스타일 설정
             style_cell={
                 'padding': '8px',
