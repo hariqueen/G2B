@@ -228,7 +228,7 @@ def register_info_callbacks(app, df):
             ),
             line=dict(width=3),
             yaxis="y2",
-            hovertemplate="물동량: %{y:,.0f} 명<extra></extra>",
+            hovertemplate="공고 수: %{y} 건<extra></extra>",
         ))
         
         # 예측 데이터 있는 경우에만 예측 표시 추가
