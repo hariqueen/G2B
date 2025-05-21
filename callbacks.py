@@ -160,7 +160,7 @@ def register_info_callbacks(app, df):
             # 예측 데이터가 없는 경우 빈 DataFrame 생성
             monthly_counts_prediction = pd.DataFrame({"예상_입찰월": [], "공고수_예측": []})
             monthly_mm_prediction = pd.DataFrame({"예상_입찰월": [], "물동량_예측": []})
-        
+            
         # 3. 데이터 병합
         all_months = pd.DataFrame({"예상_입찰월": range(1, 13)})
         all_months["월"] = all_months["예상_입찰월"].astype(str) + "월"
