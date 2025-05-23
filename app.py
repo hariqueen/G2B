@@ -123,6 +123,41 @@ server = app.server
 # Firebase 초기화
 initialize_firebase()
 
+# Firebase 실시간 리스너 설정
+def setup_firebase_listeners():
+    """Firebase 실시간 리스너 설정"""
+    global df
+    
+    def on_bids_change(event):
+        """입찰 데이터 변경 시 실행되는 콜백"""
+        print(f"Firebase 데이터 변경 감지: {event.path}")
+        
+        # 데이터 다시 로드
+        global df
+        df = load_data_from_firebase()
+        print(f"데이터 업데이트 완료: 총 {len(df)}건")
+    
+    def on_user_inputs_change(event):
+        """사용자 입력 데이터 변경 시 실행되는 콜백"""
+        print(f"사용자 입력 데이터 변경: {event.path}")
+        
+        # 데이터 다시 로드
+        global df
+        df = load_data_from_firebase()
+        print(f"사용자 입력 반영 완료: 총 {len(df)}건")
+    
+    # 입찰 데이터 리스너
+    bids_ref = db.reference('/bids')
+    bids_ref.listen(on_bids_change)
+    
+    # 사용자 입력 데이터 리스너
+    user_inputs_ref = db.reference('/user_inputs')
+    user_inputs_ref.listen(on_user_inputs_change)
+    
+    print("Firebase 실시간 리스너 설정 완료")
+
+setup_firebase_listeners()
+
 # Firebase에서 데이터 로드
 df = load_data_from_firebase()
 print(f"총 {len(df)} 레코드 로드 완료")
