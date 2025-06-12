@@ -227,4 +227,4 @@ app.update_firebase_data = update_firebase_data
 # 실행
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 10000))
-    app.run_server(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
