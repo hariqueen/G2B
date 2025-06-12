@@ -8,6 +8,7 @@ from firebase_admin import db
 from layout import create_layout
 import callbacks
 from preprocess import generate_prediction_data
+import os
 
 # Firebase 초기화 함수
 def initialize_firebase():
@@ -225,4 +226,5 @@ app.update_firebase_data = update_firebase_data
 
 # 실행
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 10000))
+    app.run_server(host='0.0.0.0', port=port, debug=False)
